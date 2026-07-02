@@ -36,7 +36,7 @@ function auditReply(reply) {
   const problems = [];
   const tagged = /~~\s*[a-z]{2,3}-IN\s*\|\s*[a-z]+\s*~~\s*[^~]*$/i.test(reply.trim());
   if (!tagged) problems.push('MISSING lang|emotion tag');
-  const tagRegex = /(?:~~)?\s*([a-z]{2,3}-IN)\s*\|\s*(warm|excited|empathetic|calm|urgent|amused|reassuring|concerned|proud)(?:~~|\|)?/gi;
+  const tagRegex = /(?:~~)?\s*([a-z]{2,3}-IN)\s*\|\s*(warm|excited|empathetic|calm|urgent|amused|reassuring|concerned|proud|gentle|encouraging|apologetic|serious)(?:~~|\|)?/gi;
   const spoken = reply.replace(tagRegex, '').replace(/[*_#`>~]+/g, '').trim();
   if (/^[-*•]|\n[-*•]/.test(spoken)) problems.push('BULLET POINTS (robotic)');
   if (/as an ai|i am an ai|language model/i.test(spoken)) problems.push('AI SELF-REFERENCE');
