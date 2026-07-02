@@ -110,7 +110,14 @@ class CallSession {
   }
 
   async speak(text, lang, emotion) {
-    const audios = await ttsSpeak(text, lang, emotion, { sampleRate: 8000, codec: 'mulaw' });
+    // Phonetic replacement for BiPC to ensure natural pronunciation
+    const bipcPhonetic = lang === 'te-IN' ? 'బైపీసీ' : (lang === 'hi-IN' ? 'बाय पी सी' : 'By-P-C');
+    const ttsText = text
+      .replace(/bipc/gi, bipcPhonetic)
+      .replace(/b\.i\.p\.c\.?/gi, bipcPhonetic)
+      .replace(/b\s+i\s+p\s+c/gi, bipcPhonetic);
+
+    const audios = await ttsSpeak(ttsText, lang, emotion, { sampleRate: 8000, codec: 'mulaw' });
     for (const a of audios) this.sendAudio(toRawMulaw(a));
   }
 
@@ -164,18 +171,47 @@ class CallSession {
       const merged = new Int16Array(frames.reduce((n, f) => n + f.length, 0));
       let off = 0;
       for (const f of frames) { merged.set(f, off); off += f.length; }
-      const stt = await sttTranscribe(pcmToWav(merged));
+      const stt = await sttTranscribe(pcmToWav(merged), 'unknown');
       const userText = (stt.transcript || '').trim();
       if (!userText) return;
       console.log(`[caller] ${userText}`);
       this.messages.push({ role: 'user', content: userText });
+      const userLang = stt.language_code || 'te-IN';
+      this.messages[0].content = buildSystemPrompt(this.lead, userLang); // dynamically swap persona
+
       const { text: raw } = await llmChat(this.messages);
       this.messages.push({ role: 'assistant', content: raw });
       // reuse the same tag format as the web server
-      const m = raw.match(/~~\s*([a-z]{2,3}-IN)\s*\|\s*([a-z]+)\s*~~\s*$/i);
-      const lang = m ? m[1] : this.lastLang;
-      const emotion = m ? m[2].toLowerCase() : 'warm';
-      const text = (m ? raw.slice(0, m.index) : raw).replace(/[*_#`>~]+/g, '').trim();
+      let lang = this.lastLang;
+      let emotion = 'warm';
+      const tagRegex = /(?:~~)?\s*([a-z]{2,3}-IN)\s*\|\s*(warm|excited|empathetic|calm|urgent|amused|reassuring|concerned|proud)(?:~~|\|)?/gi;
+      let match;
+      while ((match = tagRegex.exec(raw)) !== null) {
+        lang = match[1];
+        emotion = match[2].toLowerCase();
+      }
+      let text = raw.replace(tagRegex, '').replace(/[*_#`>~]+/g, '').trim();
+      
+      // Bulletproof Post-Processing Urban Register Enforcements
+      const replacements = [
+        { pattern: /కుమారుడు/g, replacement: 'అబ్బాయి' },
+        { pattern: /కుమారుని/g, replacement: 'అబ్బాయిని' },
+        { pattern: /పుత్రుడు/g, replacement: 'అబ్బాయి' },
+        { pattern: /రుసుము/g, replacement: 'fees' },
+        { pattern: /నమోదు/g, replacement: 'registration' },
+        { pattern: /ధన్యవాదములు/g, replacement: 'థాంక్స్ అండి' },
+        { pattern: /ధన్యవాదాలు/g, replacement: 'థాంక్స్ అండి' },
+        { pattern: /బిడ్డ/g, replacement: 'అబ్బాయి' },
+        { pattern: /కళాశాల/g, replacement: 'college' },
+        { pattern: /ఆలోచించండి/g, replacement: 'ఒకసారి చూడండి' },
+        { pattern: /ప్రయత్నించండి/g, replacement: 'try చేయండి' },
+        { pattern: /ఆలోచిస్తున్నారా/g, replacement: 'అనుకుంటున్నారా' },
+        { pattern: /ప్రయత్నిస్తున్నారా/g, replacement: 'try చేస్తున్నారా' }
+      ];
+      for (const r of replacements) {
+        text = text.replace(r.pattern, r.replacement);
+      }
+
       this.lastLang = lang;
       console.log(`[agent] ${text}`);
       await this.speak(text, lang, emotion);

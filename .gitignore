@@ -1,3 +1,6 @@
 .env
 node_modules/
 data/calls.jsonl
+data/cache/
+scratch/
+*.bak

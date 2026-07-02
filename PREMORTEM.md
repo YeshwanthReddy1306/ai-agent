@@ -1,57 +1,78 @@
-# Premortem v3 — "It's January 2027 and Phoenix Voice failed. Why?"
+# Premortem v4 — "It's January 2027 and the Resonance deployment failed. Why?"
+*(supersedes v3, which is preserved in git history; informed by 28 real field calls on 2026-07-02)*
 
-Round 1 raised 10 risks — all code-fixable ones fixed in v2. Round 2 raised 7 new ones (N1–N7) —
-all code-fixable ones now fixed in v3 (voice: **Simran**, bulbul:v3, 48 kHz). This round records
-those fixes and what genuinely remains. ✅ = mitigated in code, 🔜 = planned, ⚠️ = only you can do it.
+Ranked by (likelihood × damage). ✅ = already handled, 🛠 = concrete fix identified in AUDIT.md,
+⚠️ = only you can do it.
 
-## Status of the original 10
+## 1. The agent quotes a "TODO" or invents a fee on a real Resonance call
+**Likelihood: certain if shipped as-is · Damage: fatal to the pilot.** The FACTS block currently
+contains six `TODO — paste exact fee` strings and `Results 2025: undefined. undefined`. One parent
+asking "fees entha?" ends the pilot.
+🛠 AUDIT C1 + C2. ⚠️ Only you can supply the real Hyderabad fees, batch size, and local results.
+**This is the gate: no external call until college.json has zero TODOs and the regression suite passes.**
 
-| # | Risk | Status |
-|---|------|--------|
-| 1 | Robot feel in first 10 seconds | ✅ EQ persona (mood reading, mirror-then-lead), varied greetings, disfluency budget, thinking-acks ("haan…", "hmm…") that fill the silence while the LLM works |
-| 2 | Latency spiral | ✅ VAD endpoint 900→700 ms, pre-speech buffer (no re-asks from clipped audio), parallel sentence-split TTS (first audio ~2× sooner on long replies), acks mask the rest · 🔜 streaming APIs for sub-1.5 s |
-| 3 | Compliance shutdown | ✅ 6-min call cap with warm wrap-up, 90-day retention purge, lead notes marking existing-enquiry status · ⚠️ telemarketer registration + 140-series number before scale (below) |
-| 4 | Invented fees/promises | ✅ facts locked to college.json + FAQ block + **automated regression suite** (`npm test`, 16 tricky questions, flags any number not in the facts) |
-| 5 | Language detection misfires | ✅ LLM picks reply language (not STT), sticky language across turns, whitelist + fallback |
-| 6 | API outage mid-call | ✅ retry-once with backoff on every Sarvam call, TTS failure degrades to on-screen text instead of dead air, client auto-retries a failed turn once |
-| 7 | Cost blindness | ✅ per-call usage metering (STT seconds, LLM tokens, TTS chars) in every summary + calls.jsonl; silence costs zero (no-transcript short-circuit); ack clips cached on disk forever (one-time cost) |
-| 8 | Demo-to-phone gap | ✅ telephony bridge written (Twilio Media Streams ↔ Sarvam, mulaw 8 kHz, voice barge-in) — ⚠️ UNTESTED until Twilio creds arrive; treat first real call as a test call |
-| 9 | Angry viral moment | ✅ second-no-is-final rule, never-argue EQ rules, escalation line, hard call cap, mood captured in summary |
-| 10 | Codebase rot | ✅ still zero npm deps for the core (ws only for optional telephony); ~1,600 lines total |
+## 2. Resonance never authorized this
+**Likelihood: high if demoed publicly · Damage: legal + reputational.** The config carries the real
+brand, real helpline, real admissions number. An unauthorized AI calling parents "from Resonance"
+is a trademark problem, a TRAI problem, and a headline.
+⚠️ Get written sign-off (or demo under a neutral name) before any call to a non-you phone number.
 
-## Round-2 risks (N1–N7) — status after v3
+## 3. Language ping-pong makes the agent feel possessed
+**Likelihood: high with code-mixed callers · Damage: high.** Persona now swaps wholesale on every
+turn based on single-utterance STT language ID — the least reliable signal in Hyderabadi speech.
+One misdetection mid-call and the "Telugu aunty" answers in formal English, then flips back.
+🛠 AUDIT H1 (hysteresis: 2 consecutive turns before switching, lead language as anchor).
 
-| # | Risk | v3 status |
-|---|------|-----------|
-| N1 | Ack clips backfire after sad news | ✅ Acks reduced to strictly neutral murmurs only ("hmm…", "hmm, one second…") in all three languages — no agreement/cheer sounds left to land wrong. Still delayed 700 ms, still only when the reply is slow. |
-| N2 | Mid-reply TTS prosody seam | ✅ Split threshold raised 110 → 200 chars: typical 1–2 sentence replies are now ALWAYS a single TTS call (no seam possible); only genuinely long turns split, and only at a sentence pause. |
-| N3 | Persona drift on long calls | ✅ A ~30-token format reminder is appended to every LLM call (never stored in history): 1–2 sentences, mirror language, emit the tag. Drift can no longer accumulate past a single turn. Fallbacks + `npm test` remain as the safety net. |
-| N4 | Speakerphone/echo self-interruption | ✅ Bridge VAD now env-tunable (`BRIDGE_VAD_LEVEL`, default 600; `BRIDGE_MIN_SPEECH_MS`, default 250) and barge-in requires ~400 ms of sustained speech while the agent is talking — echo blips and coughs no longer cut her off. Web side already covered by echoCancellation + phase gating. |
-| N5 | Twilio bridge untested | ⚠️ Unchanged by design — needs your Twilio creds. First call goes to your own phone with the console open. |
-| N6 | Credit exhaustion mid-demo | ✅ Running session totals now in `/api/health` and logged after every call (calls, STT seconds, LLM tokens, TTS chars). ⚠️ Still check the dashboard balance before a college demo. |
-| N7 | Premature multi-tenant build-out | ✅ Decision recorded: nothing multi-tenant until college #2 signs. No code needed. |
+## 4. Truncated hearing → wrong facts in the CRM
+**Likelihood: high at 400 ms · Damage: medium-high.** The log already shows "9.99.99" GPAs and
+garbled names (Sathvik→సతీష్, Pooja/puja confusion). Cut-off audio produces confident nonsense,
+which then flows into summaries a sales team would act on.
+🛠 AUDIT H3 (550–600 ms endpoint) — plus a persona rule that names/numbers heard once are
+confirmed once ("Sathvik, correct ah?") before being used.
 
-## New in v3 (introduced by the v3 changes — small, watch-only)
+## 5. A daughter gets called "mee abbayi" (your son)
+**Likelihood: certain for female students · Damage: instant trust kill.** The urban-register regex
+force-replaces బిడ్డ→అబ్బాయి regardless of gender; the log's daughter scenarios already hit this
+path. The greeting-language regression (English opener for Telugu/Hindi parents) belongs to the
+same family: personalization silently degraded.
+🛠 AUDIT C4 + C5.
 
-### V1. `simran` voice + 48 kHz assumptions unverified against the live API
-**Likelihood: low · Damage: low.** Voice set to Simran (bulbul:v3) at 48 kHz per your playground
-choice; both values come straight from Sarvam's published docs, but the first live TTS call is the
-real test. If the API rejects the speaker or rate, the error surfaces cleanly in the UI and it's a
-one-line `.env` change (`AGENT_VOICE`, or drop sample rate to 24000).
+## 6. Summary data quietly rots the funnel
+**Likelihood: proven — 6 of 28 records polluted · Damage: medium, compounding.** Placeholder echoes
+(`"interest":"hot|warm|cold"`, `"objections":["..."]`) mean interest-ranking and objection reports
+can't be trusted. A sales team drops leads over bad data without noticing.
+🛠 AUDIT H4 (schema-validated summary, filled example in the prompt).
 
-### V2. 48 kHz audio doubles response payloads
-**Likelihood: certain · Damage: negligible locally.** ~2× the base64 over the wire vs 24 kHz.
-Irrelevant on localhost/LAN demos; if you ever serve this over weak mobile data, set the sample
-rate down in `lib/sarvam.js`. Telephony is unaffected (fixed 8 kHz mulaw).
+## 7. Token economics ambush the pilot
+**Likelihood: medium · Damage: medium.** 38 minutes of testing burned ~275k tokens on sarvam-105b
+with a full prompt resent per turn. A 200-call pilot at this shape is real money, and nobody has
+priced it yet.
+🛠 AUDIT H5 (trim FACTS, cap history, 30b-vs-105b bake-off). ⚠️ Check the dashboard balance and
+compute ₹/call before promising Resonance a per-call price.
 
-### V3. Stale ack cache after voice changes
-✅ Already handled: cache filenames are keyed on a hash of voice + phrase, so switching to Simran
-auto-regenerates clips instead of replaying Kavitha-voiced audio.
+## 8. The 15-word straitjacket backfires on objections
+**Likelihood: medium · Damage: medium.** One sentence, max 15 words is superb for pace, but a fee
+objection genuinely needs two beats (validate + scholarship path). The log's best calls (7–8 turns)
+worked partly because the tester was cooperative. A hostile objection may get an answer that feels
+clipped or evasive.
+🔜 Allow TWO sentences specifically inside objection handling; keep 15 words everywhere else.
+Test with the regression suite's objection questions.
 
-## The two things code cannot fix (unchanged, still the biggest real risks)
+## 9. Telephony assumptions are still unpaid debt
+**Likelihood: unchanged · Damage: medium.** The bridge inherited every new feature (register
+replacements, BiPC phonetics, tolerant tags) but has still never touched a live Twilio stream, and
+now carries duplicated logic that can drift from the server (AUDIT C5/M3).
+⚠️ Twilio creds + first call to your own phone; 🛠 unify shared logic into lib/ first.
 
-1. **TRAI/TCCCPR compliance before outbound at scale**: telemarketer registration (PE-TM chain),
-   140-series caller ID, DND scrubbing, consent records. Existing-enquiry follow-ups (the current
-   lead model) are the defensible zone — stay in it until registration is done.
-2. **Ten real Telugu parents saying "I couldn't tell"** is the only launch gate that matters.
-   Everything in this repo is engineering; that test is the product.
+## 10. The scratch lab leaks into production
+**Likelihood: low · Damage: low-medium.** 6 MB of voice-audition mp3s and key-reading test scripts
+sit inside the working tree, uncommitted, next to a live key in a OneDrive-synced `.env`.
+🛠 AUDIT M4/M5: gitignore `scratch/`, commit clean, rotate the key after the pilot setup.
+
+---
+
+## The launch gate (unchanged in spirit since v1, now concrete)
+1. Zero TODO/undefined strings in the generated system prompt.
+2. `npm test` green on the Resonance facts.
+3. Resonance's written OK.
+4. Ten real Telugu-speaking parents on test calls; if ≥8 say "I couldn't tell", ship the pilot.

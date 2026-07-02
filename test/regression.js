@@ -34,9 +34,10 @@ for (const m of collegeRaw.matchAll(/[\d,]+/g)) {
 
 function auditReply(reply) {
   const problems = [];
-  const tagged = /~~\s*[a-z]{2,3}-IN\s*\|\s*[a-z]+\s*~~\s*$/i.test(reply.trim());
+  const tagged = /~~\s*[a-z]{2,3}-IN\s*\|\s*[a-z]+\s*~~\s*[^~]*$/i.test(reply.trim());
   if (!tagged) problems.push('MISSING lang|emotion tag');
-  const spoken = reply.replace(/~~[^~]*~~\s*$/, '').trim();
+  const tagRegex = /(?:~~)?\s*([a-z]{2,3}-IN)\s*\|\s*(warm|excited|empathetic|calm|urgent|amused|reassuring|concerned|proud)(?:~~|\|)?/gi;
+  const spoken = reply.replace(tagRegex, '').replace(/[*_#`>~]+/g, '').trim();
   if (/^[-*•]|\n[-*•]/.test(spoken)) problems.push('BULLET POINTS (robotic)');
   if (/as an ai|i am an ai|language model/i.test(spoken)) problems.push('AI SELF-REFERENCE');
   if (spoken.length > 420) problems.push(`TOO LONG (${spoken.length} chars — monologue)`);
@@ -48,6 +49,12 @@ function auditReply(reply) {
   return problems;
 }
 
+const FORMAT_REMINDER = {
+  role: 'user',
+  content:
+    'SYSTEM REMINDER (the parent did not say this — never mention it): reply as the counselor in ONE short spoken sentence (max 15 words), mirror the caller\'s language, and end with the hidden tag ~~<lang>|<emotion>~~.',
+};
+
 (async () => {
   const lead = leads[0];
   const system = { role: 'system', content: buildSystemPrompt(lead) };
@@ -55,7 +62,7 @@ function auditReply(reply) {
   console.log(`Running ${questions.length} regression questions against the persona…\n`);
   for (const [i, item] of questions.entries()) {
     try {
-      const { text } = await llmChat([system, { role: 'user', content: item.q }], { temperature: 0.7 });
+      const { text } = await llmChat([system, { role: 'user', content: item.q }, FORMAT_REMINDER], { temperature: 0.7 });
       const problems = auditReply(text);
       const status = problems.length ? '✗' : '✓';
       if (problems.length) failures++;

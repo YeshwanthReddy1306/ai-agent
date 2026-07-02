@@ -50,15 +50,40 @@ setInterval(() => {
 // Parse the trailing hidden tag: "...spoken words ~~te-IN|excited~~"
 function parseReply(raw, fallbackLang) {
   let text = raw.trim();
-  let lang = TTS_LANGS.has(fallbackLang) ? fallbackLang : 'en-IN';
+  let lang = TTS_LANGS.has(fallbackLang) ? fallbackLang : 'te-IN';
   let emotion = 'warm';
-  const m = text.match(/~~\s*([a-z]{2,3}-IN)\s*\|\s*([a-z]+)\s*~~\s*$/i);
-  if (m) {
-    if (TTS_LANGS.has(m[1])) lang = m[1];
-    if (EMOTION_STYLE[m[2].toLowerCase()]) emotion = m[2].toLowerCase();
-    text = text.slice(0, m.index).trim();
+  const tagRegex = /(?:~~)?\s*([a-z]{2,3}-IN)\s*\|\s*([a-zA-Z]+)(?:~~|\|)?/gi;
+  let match;
+  while ((match = tagRegex.exec(text)) !== null) {
+    if (TTS_LANGS.has(match[1])) {
+      // If LLM wants English, force te-IN acoustic model to prevent jarring voice change
+      lang = match[1] === 'en-IN' ? 'te-IN' : match[1];
+    }
+    emotion = match[2].toLowerCase();
   }
-  text = text.replace(/[*_#`>~]+/g, '').replace(/\s{2,}/g, ' ').trim();
+
+  text = text.replace(tagRegex, '').replace(/[*_#`>~]+/g, '').replace(/\s{2,}/g, ' ').trim();
+
+  // Bulletproof Post-Processing Urban Register Enforcements
+  const replacements = [
+    { pattern: /కుమారుడు/g, replacement: 'అబ్బాయి' },
+    { pattern: /కుమారుని/g, replacement: 'అబ్బాయిని' },
+    { pattern: /పుత్రుడు/g, replacement: 'అబ్బాయి' },
+    { pattern: /రుసుము/g, replacement: 'fees' },
+    { pattern: /నమోదు/g, replacement: 'registration' },
+    { pattern: /ధన్యవాదములు/g, replacement: 'థాంక్స్ అండి' },
+    { pattern: /ధన్యవాదాలు/g, replacement: 'థాంక్స్ అండి' },
+    { pattern: /బిడ్డ/g, replacement: 'అబ్బాయి' },
+    { pattern: /కళాశాల/g, replacement: 'college' },
+    { pattern: /ఆలోచించండి/g, replacement: 'ఒకసారి చూడండి' },
+    { pattern: /ప్రయత్నించండి/g, replacement: 'try చేయండి' },
+    { pattern: /ఆలోచిస్తున్నారా/g, replacement: 'అనుకుంటున్నారా' },
+    { pattern: /ప్రయత్నిస్తున్నారా/g, replacement: 'try చేస్తున్నారా' }
+  ];
+  for (const r of replacements) {
+    text = text.replace(r.pattern, r.replacement);
+  }
+
   return { text, lang, emotion };
 }
 
@@ -84,8 +109,15 @@ const FORMAT_REMINDER = {
 // TTS that never kills the turn: on failure the text still reaches the client (premortem #6).
 async function speakSafe(call, text, lang, emotion) {
   try {
-    addUsage(call, { ttsChars: text.length });
-    return await ttsSpeak(text, lang, emotion);
+    // Phonetic replacement for BiPC to ensure natural pronunciation
+    const bipcPhonetic = lang === 'te-IN' ? 'బైపీసీ' : (lang === 'hi-IN' ? 'बाय पी सी' : 'By-P-C');
+    const ttsText = text
+      .replace(/bipc/gi, bipcPhonetic)
+      .replace(/b\.i\.p\.c\.?/gi, bipcPhonetic)
+      .replace(/b\s+i\s+p\s+c/gi, bipcPhonetic);
+
+    addUsage(call, { ttsChars: ttsText.length });
+    return await ttsSpeak(ttsText, lang, emotion);
   } catch (e) {
     console.error('TTS degraded to text-only:', e.message);
     return [];
@@ -141,10 +173,14 @@ async function handleApi(req, res, url, body) {
     if (!call) return json(res, 404, { error: 'Unknown callId' });
     call.touched = Date.now();
 
-    const stt = await sttTranscribe(Buffer.from(body.audio, 'base64'));
+    const stt = await sttTranscribe(Buffer.from(body.audio, 'base64'), 'unknown');
     addUsage(call, { stt: stt.seconds || 0 });
     const userText = (stt.transcript || '').trim();
-    if (!userText) return json(res, 200, { empty: true }); // noise — no LLM/TTS spend
+    console.log(`[Turn] User transcript: "${userText}"`);
+    if (!userText) {
+      console.log('[Turn] User transcript is empty (noise only).');
+      return json(res, 200, { empty: true }); // noise — no LLM/TTS spend
+    }
 
     call.messages.push({ role: 'user', content: userText });
 
@@ -159,11 +195,16 @@ async function handleApi(req, res, url, body) {
       });
     }
 
+    const userLang = stt.language_code || 'te-IN';
+    call.messages[0].content = buildSystemPrompt(call.lead, userLang); // dynamically swap persona
+
     const { text: raw, usage } = await llmChat([...call.messages, FORMAT_REMINDER]);
+    console.log(`[Turn] Raw LLM response: "${raw}"`);
     addUsage(call, { tokens: usage.total_tokens || 0 });
     call.messages.push({ role: 'assistant', content: raw });
 
     const reply = parseReply(raw, call.lastLang);
+    console.log('[Turn] Parsed reply:', reply);
     call.lastLang = reply.lang; // sticky language across turns (premortem #5)
     const audios = await speakSafe(call, reply.text, reply.lang, reply.emotion);
     return json(res, 200, { userText, userLang: stt.language_code, reply, audios, wrapUp });

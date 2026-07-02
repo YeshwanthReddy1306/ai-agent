@@ -1,33 +1,33 @@
 {
-  "name": "Sri Vidya Junior College",
-  "agentName": "Simran",
+  "name": "Resonance Hyderabad",
+  "agentName": "Sneha",
   "campuses": [
-    { "area": "Kukatpally", "landmark": "near JNTU metro station", "type": "co-ed day scholar + boys hostel" },
-    { "area": "Madhapur", "landmark": "Ayyappa Society main road", "type": "co-ed day scholar + girls hostel" }
+    { "area": "Madhapur", "landmark": "Kavuri Hills, Kakatiya Hills Road", "type": "co-ed day scholar + hostel (main admissions campus)" },
+    { "area": "Kukatpally", "landmark": "near KPHB / JNTU", "type": "co-ed day scholar + boys hostel" }
   ],
   "streams": {
-    "MPC + IIT-JEE": { "feePerYear": "₹95,000", "note": "Integrated JEE Mains & Advanced coaching, weekend mock tests" },
-    "MPC + EAPCET": { "feePerYear": "₹65,000", "note": "Focused EAPCET coaching for engineering seats in Telangana/AP" },
-    "BiPC + NEET": { "feePerYear": "₹98,000", "note": "Integrated NEET coaching with NCERT-line teaching, botany/zoology labs" },
-    "MEC": { "feePerYear": "₹48,000", "note": "Maths-Economics-Commerce, CA Foundation orientation available" },
-    "CEC": { "feePerYear": "₹42,000", "note": "Civics-Economics-Commerce, CLAT basics module optional" }
+    "MPC + IIT-JEE": { "feePerYear": "TODO — paste exact fee", "note": "Integrated Intermediate MPC with IIT-JEE (Main + Advanced) coaching, All India Test Series, Daily Practice Papers (DPPs)" },
+    "MPC + EAMCET": { "feePerYear": "TODO — paste exact fee", "note": "Intermediate MPC focused on EAMCET/EAPCET for engineering seats in Telangana & AP" },
+    "BiPC + NEET": { "feePerYear": "TODO — paste exact fee", "note": "Integrated Intermediate BiPC with NEET/AIIMS coaching, NCERT-line teaching" },
+    "MPC + SAT": { "feePerYear": "TODO — paste exact fee", "note": "Intermediate MPC with SAT prep for students targeting foreign/private university admissions" },
+    "JEE Long Term": { "feePerYear": "TODO — paste exact fee", "note": "Post-Intermediate / repeater long-term classroom program for JEE (Main + Advanced)" },
+    "NEET Long Term": { "feePerYear": "TODO — paste exact fee", "note": "Post-Intermediate / repeater long-term classroom program for NEET" }
   },
-  "hostel": { "feePerYear": "₹78,000", "note": "AC and non-AC rooms, veg/non-veg mess, warden supervision, weekly parent call slots" },
+  "hostel": { "feePerYear": "TODO — paste exact hostel fee", "note": "AC and non-AC rooms, veg/non-veg mess, warden supervision" },
   "results": {
-    "2025": "42 IIT seats, 118 NIT seats, 96 MBBS/BDS seats, 91% first-class in IPE boards",
-    "toppers": "College topper AIR 214 in JEE Advanced 2025; NEET city topper 687/720"
+    "brandWide": "Resonance (national): 52,395+ JEE Advanced selections, 2,57,576+ JEE Main selections, 22,000+ NEET selections across its history",
+    "hyderabad2025": "TODO — paste Hyderabad centre's local JEE/NEET seats & topper ranks (do NOT use national numbers as if they were local)"
   },
-  "batchSize": "Max 40 students per section, separate merit batches with weekly performance tracking",
-  "scholarships": "Up to 100% tuition waiver based on 10th marks / entrance test score. Sliding scale from 9.0 GPA upward.",
-  "admissionProcess": "Free campus visit and counselling session -> optional scholarship test (30 min) -> seat blocking with ₹5,000 (adjustable in first term fee, refundable within 7 days)",
-  "contact": { "phone": "040-4855-9900", "office": "Admissions office open 9 AM - 7 PM, all days" },
+  "batchSize": "TODO — confirm max students per section (e.g. merit batches with weekly performance tracking)",
+  "scholarships": "Admission and scholarship are decided by the ResoNET test (Resonance National Entrance Test). Scholarship percentage is based on ResoNET marks — up to 100% tuition waiver; higher marks = higher scholarship. Every selected JEE (Main/Advanced), Pre-Medical (NEET) or Board-division student gets a FLAT MINIMUM 50% scholarship (this minimum does NOT apply to PCCP classes 4-10). Test mode matters: taking ResoNET at a Resonance centre (invigilated) = eligible for up to 100%; taking it online from home = up to 50% only. Exact mark-to-percentage slabs are revealed with the ResoNET result — never invent a specific slab; if a parent asks 'my child scored X, what % will they get', say the exact percentage is confirmed on the ResoNET result and offer to book the test.",
+  "admissionProcess": "Free counselling session (phone or campus visit) -> register for ResoNET scholarship-cum-admission test (at centre for max scholarship, or online) -> ResoNET result gives admission + scholarship % -> seat confirmation with fee payment. Fees are typically split into installments (a large first installment at admission, balance within ~60 days). Confirm current installment terms with the admissions office.",
+  "contact": { "phone": "+91 9121219858", "office": "Admissions office; campus tours by appointment. Corporate/national helpline: +91-744-2777777" },
   "faq": {
-    "College timings": "8:30 AM to 5:30 PM for day scholars; study hours till 8 PM optional",
-    "Bus routes": "College buses cover Kukatpally, Miyapur, KPHB, Madhapur, Gachibowli, Kondapur, Chandanagar and SR Nagar routes",
-    "Weekly tests": "Every Saturday, with a printed progress report; parents get marks on WhatsApp same evening",
-    "Parent updates": "Weekly WhatsApp progress report plus a monthly parent-teacher call slot",
-    "Uniform": "Yes, formal uniform for all students, included in first-year kit",
-    "Food": "Canteen with veg and non-veg; hostel mess menu rotates weekly"
+    "What is ResoNET": "ResoNET is Resonance's own scholarship-cum-admission test. Your score decides both your admission and your scholarship percentage (up to 100%).",
+    "Online vs classroom": "Resonance Hyderabad offers integrated Intermediate + coaching in classroom; distance/online (DLP) programs also exist for JEE, NEET and BITSAT.",
+    "Number of campuses": "Resonance has an extensive campus network across Hyderabad for Intermediate integrated with IIT-JEE and NEET preparation.",
+    "Study material": "Daily Practice Papers (DPPs), topic-wise tests, All India Test Series, recorded lectures and doubt-clearing sessions.",
+    "Parent updates": "TODO — confirm the Hyderabad centre's parent-update cadence (tests, progress reports, PTM slots)"
   },
   "compliance": {
     "maxCallMinutes": 6,

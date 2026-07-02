@@ -250,6 +250,7 @@ async function loadAcks(lang) {
 }
 
 function scheduleAck(lang) {
+  return; // Disable thinking acks completely to prevent robotic/unnatural "hum" repetition
   const clips = state.acks[lang] || state.acks['en-IN'] || [];
   if (!clips.length) return;
   // if the reply hasn't arrived within ~700ms, murmur an acknowledgement like a human would
@@ -329,8 +330,8 @@ function onAudioFrame(f32) {
   if (state.speaking) state.chunks.push(new Float32Array(f32));
 
   const utteranceMs = state.chunks.length * frameMs;
-  // end of utterance: ~700ms of silence after speech, or 15s hard cap
-  if ((state.speaking && state.silentFrames * frameMs > 700) || utteranceMs > 15000) {
+  // end of utterance: ~400ms of silence after speech, or 15s hard cap
+  if ((state.speaking && state.silentFrames * frameMs > 400) || utteranceMs > 15000) {
     if (state.speaking) sendTurn();
     else startListening();
   }
