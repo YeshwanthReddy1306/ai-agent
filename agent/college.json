@@ -1,0 +1,25 @@
+{
+  "name": "Sri Vidya Junior College",
+  "agentName": "Kavitha",
+  "campuses": [
+    { "area": "Kukatpally", "landmark": "near JNTU metro station", "type": "co-ed day scholar + boys hostel" },
+    { "area": "Madhapur", "landmark": "Ayyappa Society main road", "type": "co-ed day scholar + girls hostel" }
+  ],
+  "streams": {
+    "MPC + IIT-JEE": { "feePerYear": "₹95,000", "note": "Integrated JEE Mains & Advanced coaching, weekend mock tests" },
+    "MPC + EAPCET": { "feePerYear": "₹65,000", "note": "Focused EAPCET coaching for engineering seats in Telangana/AP" },
+    "BiPC + NEET": { "feePerYear": "₹98,000", "note": "Integrated NEET coaching with NCERT-line teaching, botany/zoology labs" },
+    "MEC": { "feePerYear": "₹48,000", "note": "Maths-Economics-Commerce, CA Foundation orientation available" },
+    "CEC": { "feePerYear": "₹42,000", "note": "Civics-Economics-Commerce, CLAT basics module optional" }
+  },
+  "hostel": { "feePerYear": "₹78,000", "note": "AC and non-AC rooms, veg/non-veg mess, warden supervision, weekly parent call slots" },
+  "results": {
+    "2025": "42 IIT seats, 118 NIT seats, 96 MBBS/BDS seats, 91% first-class in IPE boards",
+    "toppers": "College topper AIR 214 in JEE Advanced 2025; NEET city topper 687/720"
+  },
+  "batchSize": "Max 40 students per section, separate merit batches with weekly performance tracking",
+  "scholarships": "Up to 100% tuition waiver based on 10th marks / entrance test score. Sliding scale from 9.0 GPA upward.",
+  "admissionProcess": "Free campus visit and counselling session -> optional scholarship test (30 min) -> seat blocking with ₹5,000 (adjustable in first term fee, refundable within 7 days)",
+  "contact": { "phone": "040-4855-9900", "office": "Admissions office open 9 AM - 7 PM, all days" },
+  "discloseAiIfPressed": true
+}

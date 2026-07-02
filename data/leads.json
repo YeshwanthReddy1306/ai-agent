@@ -1,0 +1,50 @@
+[
+  {
+    "id": "L-1001",
+    "parentName": "Ramesh Goud",
+    "studentName": "Sathvik",
+    "gender": "male",
+    "language": "te",
+    "area": "Kukatpally",
+    "tenthResult": "9.2 GPA (SSC)",
+    "interest": "MPC + IIT-JEE",
+    "source": "Walk-in enquiry at Kukatpally campus, 2 weeks ago",
+    "phone": "+91 98XXXX1001"
+  },
+  {
+    "id": "L-1002",
+    "parentName": "Lakshmi Prasanna",
+    "studentName": "Ananya",
+    "gender": "female",
+    "language": "te",
+    "area": "Miyapur",
+    "tenthResult": "9.8 GPA (SSC)",
+    "interest": "BiPC + NEET",
+    "source": "Filled enquiry form on website yesterday",
+    "phone": "+91 98XXXX1002"
+  },
+  {
+    "id": "L-1003",
+    "parentName": "Imran Khan",
+    "studentName": "Ayaan",
+    "gender": "male",
+    "language": "hi",
+    "area": "Tolichowki",
+    "tenthResult": "87% (CBSE)",
+    "interest": "MPC + EAPCET",
+    "source": "Referred by current parent, Mr. Feroz (son in 2nd year MPC)",
+    "phone": "+91 98XXXX1003"
+  },
+  {
+    "id": "L-1004",
+    "parentName": "Sarah Thomas",
+    "studentName": "Joel",
+    "gender": "male",
+    "language": "en",
+    "area": "Gachibowli",
+    "tenthResult": "92% (ICSE)",
+    "interest": "MEC",
+    "source": "Attended online webinar last Saturday, asked about CA Foundation",
+    "phone": "+91 98XXXX1004"
+  }
+]

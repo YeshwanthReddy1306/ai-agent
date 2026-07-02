@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Phoenix Voice — Admissions Call Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div id="keyBanner" class="key-banner hidden">
+  <strong>SARVAM_API_KEY missing.</strong>&nbsp;Copy <code>.env.example</code> → <code>.env</code>, paste your key (free credits at dashboard.sarvam.ai), restart the server.
+</div>
+
+<div class="shell">
+  <!-- ============ LEADS ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">🔥</div>
+      <div>
+        <div class="brand-name">Phoenix Voice</div>
+        <div class="brand-sub" id="collegeName">—</div>
+      </div>
+    </div>
+    <div class="section-label">Today's lead queue</div>
+    <div id="leadList" class="lead-list"></div>
+    <div class="sidebar-foot">
+      <span class="dot" id="healthDot"></span><span id="healthText">checking…</span>
+    </div>
+  </aside>
+
+  <!-- ============ CALL STAGE ============ -->
+  <main class="stage">
+    <div class="stage-head">
+      <div id="callTitle" class="call-title">Select a lead and start the call</div>
+      <div id="timer" class="timer">00:00</div>
+    </div>
+
+    <div class="orb-wrap">
+      <div id="orb" class="orb idle" title="Tap while agent is speaking to interrupt">
+        <div class="orb-core" id="orbCore">K</div>
+        <div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div>
+      </div>
+      <div id="stateText" class="state-text">Idle</div>
+      <div class="bars hidden" id="micBars"><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+
+    <div class="controls">
+      <button id="btnStart" class="btn primary" disabled>📞 Start call</button>
+      <button id="btnEnd" class="btn danger hidden">■ End call</button>
+    </div>
+
+    <div id="transcript" class="transcript"></div>
+  </main>
+</div>
+
+<!-- ============ CALL SUMMARY ============ -->
+<div id="summaryOverlay" class="overlay hidden">
+  <div class="summary-card">
+    <div class="summary-head">
+      <div class="summary-title">Call summary</div>
+      <span id="sumInterest" class="badge">—</span>
+    </div>
+    <p id="sumText" class="summary-body">—</p>
+    <div class="summary-row"><span>Next action</span><strong id="sumNext">—</strong></div>
+    <div class="summary-row"><span>Objections</span><strong id="sumObjections">—</strong></div>
+    <div class="summary-row"><span>Duration</span><strong id="sumDuration">—</strong></div>
+    <button id="btnCloseSummary" class="btn primary wide">Back to queue</button>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
