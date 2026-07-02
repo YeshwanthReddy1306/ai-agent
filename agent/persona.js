@@ -55,27 +55,16 @@ function buildSystemPrompt(lead, langCode = 'te-IN') {
   return tePrompt(safe, lead, faq, campuses, streams); // default to Telugu
 }
 
-// Premortem #5 fix: the greeting matches the lead's language again (the English-only
-// greeting contradicted the monolingual persona on turn one). Deterministic — zero
-// LLM latency on the first impression.
+// Call flow (user requirement, 2026-07-03): the agent ALWAYS opens in English; from the
+// first reply onward it mirrors whatever language the parent speaks (instant switching).
+// Deterministic — zero LLM latency on the first impression.
 function greetingFor(lead) {
   const first = lead.parentName.split(' ')[0];
-  const g = {
-    te: {
-      text: `హలో, నమస్కారం అండి! నేను ${college.agentName}ని, ${college.name} admissions office నుంచి మాట్లాడుతున్నాను. ${lead.parentName} గారేనా?`,
-      lang: 'te-IN',
-    },
-    hi: {
-      text: `हेलो, नमस्ते! मैं ${college.agentName} बोल रही हूँ, ${college.name} के admissions office से। क्या मेरी बात ${lead.parentName} जी से हो रही है?`,
-      lang: 'hi-IN',
-    },
-    en: {
-      text: `Hello, good evening! This is ${college.agentName} from the admissions office at ${college.name}. Am I speaking with ${first}?`,
-      lang: 'en-IN',
-    },
+  return {
+    text: `Hello, good evening! This is ${college.agentName} calling from the admissions office at ${college.name}. Am I speaking with ${first}?`,
+    lang: 'en-IN',
+    emotion: 'warm',
   };
-  const pick = g[lead.language] || g.te;
-  return { ...pick, emotion: 'warm' };
 }
 
 const LANG_CODE = { te: 'te-IN', hi: 'hi-IN', en: 'en-IN' };

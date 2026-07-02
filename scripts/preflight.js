@@ -23,14 +23,14 @@ for (const lead of leads) {
 }
 if (!failures) ok('no undefined/TODO leaks in any generated prompt (4 leads × 3 languages)');
 
-// 2. Greeting language must match each lead
+// 2. Call-flow contract (2026-07-03): the agent ALWAYS opens in English,
+//    then mirrors the caller's language from turn one (LANG_SWITCH_TURNS=1).
 for (const lead of leads) {
   const g = greetingFor(lead);
-  const expect = { te: 'te-IN', hi: 'hi-IN', en: 'en-IN' }[lead.language];
-  if (expect && g.lang !== expect) fail(`greeting for ${lead.id} (${lead.language}) tagged ${g.lang}`);
+  if (g.lang !== 'en-IN') fail(`greeting for ${lead.id} must be en-IN (English-first opening), got ${g.lang}`);
   if (!g.text || g.text.length < 20) fail(`greeting for ${lead.id} is empty/too short`);
 }
-ok('greetings match lead languages');
+ok('greetings follow the English-first opening contract');
 
 // 3. Facts readiness — TODOs are SAFE (sanitizer defers them) but block a real pilot
 const rawFacts = fs.readFileSync(path.join(__dirname, '..', 'agent', 'college.json'), 'utf8');

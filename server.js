@@ -17,7 +17,7 @@ if (fs.existsSync(envPath)) {
 }
 
 const { sttTranscribe, llmChat, ttsSpeak, ackClips, EMOTION_STYLE, TTS_LANGS } = require('./lib/sarvam');
-const { parseTag, acousticFor, applyRegister, ttsPhonetics, nextPersonaLang } = require('./lib/textpost');
+const { parseTag, applyRegister, ttsPhonetics, nextPersonaLang } = require('./lib/textpost');
 const { buildSystemPrompt, greetingFor, college, LANG_CODE } = require('./agent/persona');
 
 const API_KEY = process.env.SARVAM_API_KEY || '';
@@ -48,13 +48,15 @@ setInterval(() => {
   for (const [id, c] of calls) if (now - c.touched > 30 * 60000) calls.delete(id);
 }, 5 * 60000).unref();
 
-// Parse the hidden tag, pin the acoustic voice to the lead's language, and apply the
-// urban-register pass (all shared with the telephony bridge via lib/textpost.js).
+// Parse the hidden tag and apply the urban-register pass (shared with the telephony
+// bridge via lib/textpost.js). Each reply is voiced in ITS OWN language model — the
+// bulbul:v3 speaker is the same person across te/hi/en, so mid-call language switches
+// keep the same voice with correct pronunciation.
 function parseReply(raw, fallbackLang, lead) {
   const parsed = parseTag(raw, fallbackLang);
   return {
     text: applyRegister(parsed.text, lead),
-    lang: acousticFor(parsed.lang, lead?.language),
+    lang: parsed.lang,
     emotion: parsed.emotion,
   };
 }
@@ -72,11 +74,16 @@ function addUsage(call, { stt = 0, tokens = 0, ttsChars = 0 }) {
 
 // Persona drift guard (premortem N3): a tiny reminder appended to every LLM call —
 // never stored in history, so it costs ~30 tokens and cannot be talked over.
-const FORMAT_REMINDER = {
-  role: 'user',
-  content:
-    'SYSTEM REMINDER (the parent did not say this — never mention it): reply as the counselor in ONE short spoken sentence (max 15 words; TWO short sentences only when handling an objection or worry), and end with the hidden tag ~~<lang>|<emotion>~~.',
-};
+// NOW LANGUAGE-AWARE: explicitly tells the LLM which language to reply in,
+// so mid-call switches (especially to Telugu) are enforced.
+const LANG_LABEL = { 'te-IN': 'TELUGU (Telugu script)', 'hi-IN': 'HINDI (Devanagari script)', 'en-IN': 'ENGLISH' };
+function formatReminder(personaLang) {
+  const label = LANG_LABEL[personaLang] || 'ENGLISH';
+  return {
+    role: 'user',
+    content: `SYSTEM REMINDER (the parent did not say this — never mention it): You MUST reply ENTIRELY in ${label}. Reply as the counselor in ONE short spoken sentence (max 15 words; TWO short sentences only when handling an objection or worry), and end with the hidden tag ~~${personaLang}|<emotion>~~.`,
+  };
+}
 
 // Premortem #7: cap what each LLM call carries — system prompt + the last N exchanges.
 const HISTORY_TURNS = Number(process.env.HISTORY_TURNS) || 12;
@@ -124,7 +131,7 @@ async function handleApi(req, res, url, body) {
     const lead = leads.find((l) => l.id === body.leadId) || leads[0];
     const callId = crypto.randomUUID();
     const greeting = greetingFor(lead);
-    const personaLang = LANG_CODE[lead.language] || 'te-IN';
+    const personaLang = 'en-IN'; // always open in English; mirror the caller from turn one
     const call = {
       lead,
       messages: [
@@ -167,14 +174,14 @@ async function handleApi(req, res, url, body) {
       });
     }
 
-    // Persona switches only after 2 consecutive turns in a new language (premortem #3) —
-    // a single STT misdetection on code-mixed speech no longer flips the whole call.
-    if (nextPersonaLang(call, stt.language_code || '')) {
+    // Mirror the caller's language. LANG_SWITCH_TURNS=1 (default) switches the persona
+    // the moment the caller changes language; set 2 in .env if misdetections ping-pong.
+    if (nextPersonaLang(call, stt.language_code || '', Number(process.env.LANG_SWITCH_TURNS) || 1)) {
       call.messages[0].content = buildSystemPrompt(call.lead, call.personaLang);
       console.log(`[Turn] Persona switched to ${call.personaLang}`);
     }
 
-    const { text: raw, usage } = await llmChat([...windowed(call.messages), FORMAT_REMINDER]);
+    const { text: raw, usage } = await llmChat([...windowed(call.messages), formatReminder(call.personaLang)]);
     console.log(`[Turn] Raw LLM response: "${raw}"`);
     addUsage(call, { tokens: usage.total_tokens || 0 });
     call.messages.push({ role: 'assistant', content: raw });
