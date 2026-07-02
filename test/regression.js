@@ -49,11 +49,10 @@ function auditReply(reply) {
   return problems;
 }
 
-const FORMAT_REMINDER = {
-  role: 'user',
-  content:
-    'SYSTEM REMINDER (the parent did not say this — never mention it): reply as the counselor in ONE short spoken sentence (max 15 words), mirror the caller\'s language, and end with the hidden tag ~~<lang>|<emotion>~~.',
-};
+const { formatReminder } = require('../lib/textpost');
+// The suite runs against the Telugu persona (the default), so pin the same
+// language-aware reminder the live server sends.
+const FORMAT_REMINDER = formatReminder('te-IN');
 
 (async () => {
   const lead = leads[0];

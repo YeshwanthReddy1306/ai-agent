@@ -17,7 +17,7 @@ if (fs.existsSync(envPath)) {
 }
 
 const { sttTranscribe, llmChat, ttsSpeak, ackClips, EMOTION_STYLE, TTS_LANGS } = require('./lib/sarvam');
-const { parseTag, applyRegister, ttsPhonetics, nextPersonaLang } = require('./lib/textpost');
+const { parseTag, applyRegister, ttsPhonetics, nextPersonaLang, formatReminder } = require('./lib/textpost');
 const { buildSystemPrompt, greetingFor, college, LANG_CODE } = require('./agent/persona');
 
 const API_KEY = process.env.SARVAM_API_KEY || '';
@@ -72,18 +72,8 @@ function addUsage(call, { stt = 0, tokens = 0, ttsChars = 0 }) {
   sessionUsage.ttsChars += ttsChars;
 }
 
-// Persona drift guard (premortem N3): a tiny reminder appended to every LLM call —
-// never stored in history, so it costs ~30 tokens and cannot be talked over.
-// NOW LANGUAGE-AWARE: explicitly tells the LLM which language to reply in,
-// so mid-call switches (especially to Telugu) are enforced.
-const LANG_LABEL = { 'te-IN': 'TELUGU (Telugu script)', 'hi-IN': 'HINDI (Devanagari script)', 'en-IN': 'ENGLISH' };
-function formatReminder(personaLang) {
-  const label = LANG_LABEL[personaLang] || 'ENGLISH';
-  return {
-    role: 'user',
-    content: `SYSTEM REMINDER (the parent did not say this — never mention it): You MUST reply ENTIRELY in ${label}. Reply as the counselor in ONE short spoken sentence (max 15 words; TWO short sentences only when handling an objection or worry), and end with the hidden tag ~~${personaLang}|<emotion>~~.`,
-  };
-}
+// Persona drift guard: the language-aware reminder now lives in lib/textpost.js
+// (shared with the telephony bridge so web and phone behavior cannot diverge).
 
 // Premortem #7: cap what each LLM call carries — system prompt + the last N exchanges.
 const HISTORY_TURNS = Number(process.env.HISTORY_TURNS) || 12;

@@ -32,8 +32,8 @@ try {
 }
 
 const { sttTranscribe, llmChat, ttsSpeak } = require('../lib/sarvam');
-const { parseTag, acousticFor, applyRegister, ttsPhonetics, nextPersonaLang } = require('../lib/textpost');
-const { buildSystemPrompt, greetingFor, LANG_CODE } = require('../agent/persona');
+const { parseTag, applyRegister, ttsPhonetics, nextPersonaLang, formatReminder } = require('../lib/textpost');
+const { buildSystemPrompt, greetingFor } = require('../agent/persona');
 const leads = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'leads.json'), 'utf8'));
 
 const PORT = Number(process.env.TELEPHONY_PORT) || 3200;
@@ -82,8 +82,8 @@ class CallSession {
     this.ws = ws;
     this.lead = lead;
     this.streamSid = null;
-    this.personaLang = LANG_CODE[lead.language] || 'te-IN';
-    this.streak = { lang: null, count: 0 }; // language-switch hysteresis (premortem #3)
+    this.personaLang = 'en-IN'; // English-first opening; mirrors the caller from turn one
+    this.streak = { lang: null, count: 0 };
     this.messages = [{ role: 'system', content: buildSystemPrompt(lead, this.personaLang) }];
     this.lastLang = 'en-IN';
     this.pcm = []; // Int16Array frames while user speaks
@@ -172,23 +172,23 @@ class CallSession {
       if (!userText) return;
       console.log(`[caller] ${userText}`);
       this.messages.push({ role: 'user', content: userText });
-      // persona switches only after 2 consecutive turns in a new language (premortem #3)
-      if (nextPersonaLang(this, stt.language_code || '')) {
+      // Mirror the caller's language — same contract as the web server:
+      // LANG_SWITCH_TURNS=1 (default) switches instantly; 2 restores hysteresis.
+      if (nextPersonaLang(this, stt.language_code || '', Number(process.env.LANG_SWITCH_TURNS) || 1)) {
         this.messages[0].content = buildSystemPrompt(this.lead, this.personaLang);
         console.log(`[bridge] persona switched to ${this.personaLang}`);
       }
 
-      // history window (premortem #7): system prompt + the last 12 exchanges
-      const { text: raw } = await llmChat([this.messages[0], ...this.messages.slice(1).slice(-12)]);
+      // history window + language-aware reminder — identical to the web server
+      const { text: raw } = await llmChat([this.messages[0], ...this.messages.slice(1).slice(-12), formatReminder(this.personaLang)]);
       this.messages.push({ role: 'assistant', content: raw });
-      // shared parsing/register pass — identical to the web server (lib/textpost.js)
+      // shared parsing/register pass; each reply voiced in its own language model
       const parsed = parseTag(raw, this.lastLang);
-      const lang = acousticFor(parsed.lang, this.lead.language);
       const text = applyRegister(parsed.text, this.lead);
 
-      this.lastLang = lang;
+      this.lastLang = parsed.lang;
       console.log(`[agent] ${text}`);
-      await this.speak(text, lang, parsed.emotion);
+      await this.speak(text, parsed.lang, parsed.emotion);
     } finally {
       this.busy = false;
     }
