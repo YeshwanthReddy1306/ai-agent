@@ -29,6 +29,26 @@ node server.js
 The call is fully hands-free: the agent greets first, then a voice-activity detector figures out
 when you finish speaking. Tap the glowing circle to interrupt her mid-sentence (barge-in).
 
+## v2 — emotional intelligence & humanization
+
+- **EQ engine**: the persona diagnoses the parent's state every turn (worried / proud / skeptical /
+  busy / irritated / chatty) and answers the *feeling* before the fact — mirror-then-lead.
+- **9 emotions** mapped to voice delivery: warm, excited, empathetic, calm, urgent, amused,
+  reassuring, concerned, proud (each changes pace + expressiveness in Bulbul v3).
+- **Thinking-acks**: while the pipeline works, the agent murmurs a natural "haan…", "అలాగా…",
+  "hmm…" (cached clips, near-zero cost) — the silence that screams "computer" is gone.
+- **Human imperfections, budgeted**: thinking sounds, occasional self-repair, trailing thoughts —
+  at most one per turn so it never becomes a tic.
+- **No clipped first syllable**: a rolling pre-speech buffer captures the run-up before the VAD
+  triggers, so "MPC fees entha?" never arrives as "...C fees entha?".
+- **Faster turns**: 700 ms end-of-speech detection + parallel sentence-split TTS (first audio
+  chunk arrives while the second is still rendering).
+- **Second-no-is-final**: a graceful, warm exit is scripted into the sales playbook.
+- **Regression suite**: `npm test` fires 16 tricky parent questions (fee traps, invented-fact bait,
+  "are you a robot?", rival-college bait) and auto-flags invented numbers, robotic tells, monologues.
+- **Ops hardening**: retry-once on every API call, text-only degradation when TTS fails, per-call
+  usage metering, 6-min call cap with warm wrap-up, 90-day retention purge, stale-call sweep.
+
 ## How a turn works
 
 ```
@@ -78,18 +98,25 @@ generic SaaS skeleton. The things that actually decide whether this product work
 7. **No sales outcome capture** — now: post-call LLM summary + interest score + objection list to `calls.jsonl`.
 8. **No compliance thinking** — see [PREMORTEM.md](PREMORTEM.md) (TRAI/DND, DPDP, AI disclosure).
 
-## Roadmap to real phone calls (Phase 2)
+## Real phone calls (Phase 2 — bridge included, needs your Twilio creds)
 
-The web console is the product demo + agent tuning bench. To dial real numbers:
+The Twilio Media Streams bridge is written at `telephony/bridge.js` — same brain, phone transport
+(8 kHz mulaw both ways, voice barge-in via `clear` events). To run it:
 
-1. **Telephony provider**: Twilio Programmable Voice (global) or Exotel/Ozonetel (India-native,
-   easier TRAI compliance). Outbound call → audio bridged over a **Media Streams WebSocket**.
-2. **Swap transport, keep the brain**: the `/api/call/turn` pipeline stays identical; the WebSocket
-   bridge replaces the browser (8 kHz mulaw in/out instead of 16 kHz WAV).
-3. **Cut latency for phone-grade turn-taking**: move to Sarvam's **streaming** STT/TTS WebSocket APIs
-   (partial transcripts in, chunked audio out) — target < 1.5 s response time.
-4. **Compliance before scale**: register as telemarketer, 140-series caller ID, DND scrubbing,
-   call-recording consent line. Details in PREMORTEM.md — India fines per violation.
+```bash
+npm i ws                      # the only dependency, telephony-only
+ngrok http 3200               # any public tunnel works
+# .env: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, PUBLIC_URL
+npm run telephony
+curl -X POST localhost:3200/dial -H "Content-Type: application/json" -d '{"leadId":"L-1001","to":"+91XXXXXXXXXX"}'
+```
+
+It is code-complete but **untested until credentials exist** — make the first call to your own
+phone. India-native alternatives (Exotel/Ozonetel) use the same shape and ease TRAI compliance.
+Next latency step: Sarvam's streaming STT/TTS WebSockets for sub-1.5 s turns.
+
+**Compliance before scale**: telemarketer registration, 140-series caller ID, DND scrubbing,
+recording consent. Details in PREMORTEM.md — India fines per violation.
 
 ## Costs (rough, per minute of call)
 

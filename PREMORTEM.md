@@ -1,59 +1,72 @@
-# Premortem — "It's January 2027 and Phoenix Voice failed. Why?"
+# Premortem v2 — "It's January 2027 and Phoenix Voice failed. Why?"
 
-Ranked by (likelihood × damage). ✅ = already mitigated in this build, 🔜 = mitigation planned, ⚠️ = open decision for you.
+Round 1 raised 10 risks; every one that can be fixed in code is now fixed (✅ v2). This round
+re-ranks what's left plus **new risks introduced by the v2 fixes themselves**. ✅ = mitigated in
+code, 🔜 = planned, ⚠️ = decision/action only you can take.
 
-## 1. Parents hang up in the first 10 seconds ("it felt like a robot")
-**Likelihood: high · Damage: fatal.** The entire value proposition is humanness.
-- ✅ Persona enforces 1–2 sentence turns, one question at a time, filler budget, no lists/recaps.
-- ✅ Emotion tag → TTS delivery mapping (excited/empathetic/calm change pace + expressiveness).
-- ✅ Deterministic natural greeting (no LLM delay on the first impression).
-- 🔜 The real killer is **latency** (see #2) and **turn-taking**: humans reply in ~200 ms, this build takes 2–4 s. Acceptable in a demo, noticeable on a phone. Fix: Sarvam streaming STT/TTS + speculative TTS of the first clause.
-- ⚠️ Test with 10 real Telugu-speaking parents before any campaign. Their verdict is the only benchmark.
+## Status of the original 10
 
-## 2. Latency spiral
-**Likelihood: high · Damage: high.** Three sequential API calls per turn (STT → LLM → TTS).
-- ✅ `sarvam-30b` + `reasoning_effort: low` + 220-token cap (short replies are also more human).
-- ✅ VAD endpointing at 900 ms silence — the biggest hidden latency is usually waiting too long to decide the user finished.
-- 🔜 Streaming APIs (both STT and TTS support WebSockets) would cut perceived latency to ~1–1.5 s.
+| # | Risk | Status |
+|---|------|--------|
+| 1 | Robot feel in first 10 seconds | ✅ EQ persona (mood reading, mirror-then-lead), varied greetings, disfluency budget, thinking-acks ("haan…", "hmm…") that fill the silence while the LLM works |
+| 2 | Latency spiral | ✅ VAD endpoint 900→700 ms, pre-speech buffer (no re-asks from clipped audio), parallel sentence-split TTS (first audio ~2× sooner on long replies), acks mask the rest · 🔜 streaming APIs for sub-1.5 s |
+| 3 | Compliance shutdown | ✅ 6-min call cap with warm wrap-up, 90-day retention purge, lead notes marking existing-enquiry status · ⚠️ telemarketer registration + 140-series number before scale (below) |
+| 4 | Invented fees/promises | ✅ facts locked to college.json + FAQ block + **automated regression suite** (`npm test`, 16 tricky questions, flags any number not in the facts) |
+| 5 | Language detection misfires | ✅ LLM picks reply language (not STT), sticky language across turns, whitelist + fallback |
+| 6 | API outage mid-call | ✅ retry-once with backoff on every Sarvam call, TTS failure degrades to on-screen text instead of dead air, client auto-retries a failed turn once |
+| 7 | Cost blindness | ✅ per-call usage metering (STT seconds, LLM tokens, TTS chars) in every summary + calls.jsonl; silence costs zero (no-transcript short-circuit); ack clips cached on disk forever (one-time cost) |
+| 8 | Demo-to-phone gap | ✅ telephony bridge written (Twilio Media Streams ↔ Sarvam, mulaw 8 kHz, voice barge-in) — ⚠️ UNTESTED until Twilio creds arrive; treat first real call as a test call |
+| 9 | Angry viral moment | ✅ second-no-is-final rule, never-argue EQ rules, escalation line, hard call cap, mood captured in summary |
+| 10 | Codebase rot | ✅ still zero npm deps for the core (ws only for optional telephony); ~1,600 lines total |
 
-## 3. Legal/regulatory shutdown (India-specific — the spec ignored this entirely)
-**Likelihood: medium · Damage: fatal for outbound at scale.**
-- ⚠️ **TRAI TCCCPR**: unsolicited commercial calls require registration as a telemarketer, a 140-series number, and **DND registry scrubbing**. Fines are per violation and providers disconnect violators. Calling *existing enquiries/leads* (like this build's queue) is materially safer than cold lists — keep it that way.
-- ⚠️ **AI disclosure**: multiple jurisdictions are moving to mandatory disclosure of synthetic voices. The persona deflects the "are you a robot?" question once with humour, then **admits honestly if pressed** — this is deliberate; scripting it to lie is a brand-destroying news story waiting to happen ("College uses AI to trick parents").
-- ⚠️ **DPDP Act 2023**: you're processing minors' academic data + parents' phone numbers. Needs consent records, retention policy, and deletion on request. `calls.jsonl` currently keeps summaries forever — add retention before production.
-- ⚠️ Call recording/transcription consent line at call start for production.
+## New risks (introduced by v2 or newly visible)
 
-## 4. The agent invents fees, dates, or seat promises
-**Likelihood: medium · Damage: high** (an invented ₹40,000 fee is a refund demand + reputation hit).
-- ✅ Facts locked to `agent/college.json`; unknown → "office will confirm on WhatsApp today".
-- 🔜 Log every call transcript and spot-check weekly; add a regression suite of 30 tricky questions ("free seat confirm ah?", "hostel lo non-veg unda?", "principal evaru?").
+### N1. The ack clips backfire
+**Likelihood: medium · Damage: medium.** A cheerful "haan…" right after a parent says something sad
+(“vaalla nanna poyaru last year”) sounds sociopathic.
+- ✅ Acks are neutral-calm murmurs, delayed 700 ms, and only fire when the reply is genuinely slow.
+- 🔜 If it ever lands wrong in testing, cut the te/hi cheerful variants and keep only "hmm…".
+- ⚠️ Listen for this specifically in your first 10 test calls.
 
-## 5. Language detection misfires on Hyderabadi code-mixing
-**Likelihood: medium · Damage: medium.** "Fees entha in total, sir cheppandi" can confuse STT language tags.
-- ✅ STT set to auto-detect (`unknown`) and the **LLM chooses the reply language itself** via the hidden tag — so a wrong STT language label doesn't force a wrong reply language.
-- ✅ TTS language whitelist with en-IN fallback prevents hard failures on a bad tag.
-- 🔜 If Telugu STT accuracy disappoints on telephone (8 kHz) audio, test `saarika:v2.5` vs `saaras:v3` on real call recordings.
+### N2. Parallel-chunk TTS produces a mid-reply voice seam
+**Likelihood: medium · Damage: low.** Two TTS calls = two prosody contexts; the join can sound like
+a tiny edit cut.
+- ✅ Split only happens above 110 chars and only at a sentence boundary (a natural pause point).
+- 🔜 If audible, drop to single-call TTS below 200 chars (one-line change in `lib/sarvam.js`).
 
-## 6. Sarvam API outage or rate limits mid-campaign
-**Likelihood: low-medium · Damage: medium.**
-- ✅ Every API error surfaces cleanly in the UI and ends the turn gracefully rather than dead air.
-- 🔜 For production: retry-once with backoff, a "let me call you right back" TTS fallback (pre-rendered audio file, no API needed), and a circuit breaker that pauses the dialer.
+### N3. The persona is now long — model drift under pressure
+**Likelihood: medium · Damage: medium.** ~1,400 words of instructions; a small model at
+`reasoning_effort: low` may drop rules deep in a 10-turn call (e.g. forgetting the tag).
+- ✅ Tag parse has a safe fallback (sticky language + warm emotion) so a dropped tag degrades invisibly.
+- ✅ Regression suite catches structural drift cheaply — run it after every persona edit.
+- 🔜 If drift shows up: try `sarvam-105b` (one env var), or compress the persona's FACTS section.
 
-## 7. Cost blindness
-**Likelihood: medium · Damage: medium.** Credits burn silently; a stuck VAD loop could stream noise turns.
-- ✅ Empty/noise transcripts short-circuit (no LLM/TTS spend on silence).
-- ✅ 15 s hard cap per utterance, 30 MB body cap.
-- 🔜 Add per-call and per-day spend counters to `calls.jsonl` records once real pricing is measured.
+### N4. Echo loop on speakerphone
+**Likelihood: medium · Damage: medium.** Parent puts you on speaker; the agent's own voice re-enters
+the mic and the VAD treats it as the parent talking (self-interruption, garbage turns).
+- ✅ Web: browser echoCancellation + mic ignored except in `listening` phase.
+- ⚠️ Telephony: carrier-side echo is usually handled by Twilio, but test speakerphone explicitly;
+  if it self-triggers, raise the bridge VAD threshold (500 → 800) and require 300 ms of speech.
 
-## 8. Demo-to-phone gap disappoints
-**Likelihood: high · Damage: medium.** Browser audio is 16 kHz clean; phone lines are 8 kHz with traffic noise, crosstalk, kids shouting.
-- 🔜 Phase 2 plan in README: Exotel/Twilio media streams, mulaw transcoding, re-tuned VAD thresholds, and STT accuracy re-testing on real telephone recordings **before** promising anything to a college.
+### N5. Twilio bridge is fresh, untested code
+**Likelihood: high that something needs a tweak · Damage: low if expected.** Mulaw header stripping,
+frame pacing, and barge-in `clear` events are all textbook-correct but unverified against a live stream.
+- ⚠️ First telephony test call should be to YOUR OWN phone, with the bridge console open.
 
-## 9. One angry viral moment
-**Likelihood: low · Damage: high.** A parent posts a recording: the agent argued, or wouldn't take no.
-- ✅ Persona: accepts "not interested" warmly on the second no, never criticizes rival colleges, closes politely.
-- 🔜 Production: hard cap call length (~6 min), sentiment check in the summary, human-escalation phrase ("I'll have our senior counselor call you").
+### N6. Free-credit exhaustion mid-demo
+**Likelihood: medium · Damage: embarrassing.** Sarvam free credits are finite; ack generation,
+regression runs, and repeated demos add up.
+- ✅ Usage is now visible per call; acks cached; silence free.
+- ⚠️ Check the dashboard balance before any demo to a college.
 
-## 10. The codebase rots into the 16-phase monster
-**Likelihood: medium · Damage: slow death.** The original spec prescribed React+Redux+NestJS+Postgres+RabbitMQ for what is, today, one process and three fetch calls.
-- ✅ Zero dependencies, ~600 lines total, one config file per college. Add infrastructure only when a real limit is hit (multi-tenant → then a DB; concurrent calls at scale → then a queue).
+### N7. One college.json for what is really multi-tenant SaaS
+**Likelihood: low now · Damage: low.** Selling to a second college means a second config — fine.
+Selling to twenty means auth, tenancy, a DB, and an admin UI. Do NOT build that until college #2 signs.
+
+## The two things code cannot fix (unchanged, still the biggest real risks)
+
+1. **TRAI/TCCCPR compliance before outbound at scale**: telemarketer registration (PE-TM chain),
+   140-series caller ID, DND scrubbing, consent records. Existing-enquiry follow-ups (the current
+   lead model) are the defensible zone — stay in it until registration is done.
+2. **Ten real Telugu parents saying "I couldn't tell"** is the only launch gate that matters.
+   Everything in this repo is engineering; that test is the product.

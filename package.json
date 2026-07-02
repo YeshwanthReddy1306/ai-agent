@@ -4,7 +4,9 @@
   "description": "Human-sounding AI voice agent for junior college admissions — Sarvam AI (Telugu/Hindi/English), zero dependencies",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node test/regression.js",
+    "telephony": "node telephony/bridge.js"
   },
   "engines": {
     "node": ">=18"

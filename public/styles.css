@@ -63,6 +63,17 @@ body {
 }
 .lead-meta { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
 .lead-meta b { color: #c9d2f0; font-weight: 600; }
+.history-list { max-height: 22vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.history-item {
+  display: flex; align-items: center; gap: 8px; font-size: 12px;
+  padding: 8px 10px; border-radius: 10px; background: var(--card); border: 1px solid var(--card-border);
+}
+.history-name { flex: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history-meta { color: var(--muted); font-variant-numeric: tabular-nums; }
+.history-empty { font-size: 12px; color: var(--muted); padding: 4px 2px; }
+.badge.sm { font-size: 9px; padding: 2px 8px; }
+.badge.unknown { background: #334155; color: #94a3b8; }
+
 .sidebar-foot {
   display: flex; align-items: center; gap: 8px; padding-top: 14px;
   font-size: 12px; color: var(--muted); border-top: 1px solid var(--card-border); margin-top: 12px;

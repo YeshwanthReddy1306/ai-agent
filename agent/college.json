@@ -21,5 +21,17 @@
   "scholarships": "Up to 100% tuition waiver based on 10th marks / entrance test score. Sliding scale from 9.0 GPA upward.",
   "admissionProcess": "Free campus visit and counselling session -> optional scholarship test (30 min) -> seat blocking with ₹5,000 (adjustable in first term fee, refundable within 7 days)",
   "contact": { "phone": "040-4855-9900", "office": "Admissions office open 9 AM - 7 PM, all days" },
+  "faq": {
+    "College timings": "8:30 AM to 5:30 PM for day scholars; study hours till 8 PM optional",
+    "Bus routes": "College buses cover Kukatpally, Miyapur, KPHB, Madhapur, Gachibowli, Kondapur, Chandanagar and SR Nagar routes",
+    "Weekly tests": "Every Saturday, with a printed progress report; parents get marks on WhatsApp same evening",
+    "Parent updates": "Weekly WhatsApp progress report plus a monthly parent-teacher call slot",
+    "Uniform": "Yes, formal uniform for all students, included in first-year kit",
+    "Food": "Canteen with veg and non-veg; hostel mess menu rotates weekly"
+  },
+  "compliance": {
+    "maxCallMinutes": 6,
+    "note": "Leads in this queue are existing enquiries (walk-ins, website forms, referrals) — not cold DND-registry calls"
+  },
   "discloseAiIfPressed": true
 }
