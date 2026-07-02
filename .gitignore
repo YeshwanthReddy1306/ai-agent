@@ -2,5 +2,6 @@
 node_modules/
 data/calls.jsonl
 data/cache/
+data/transcripts/
 scratch/
 *.bak

@@ -75,6 +75,17 @@ function addUsage(call, { stt = 0, tokens = 0, ttsChars = 0 }) {
 // Persona drift guard: the language-aware reminder now lives in lib/textpost.js
 // (shared with the telephony bridge so web and phone behavior cannot diverge).
 
+// PERSONA HOT-RELOAD: re-read agent/*.js + college.json on every NEW call, so persona
+// edits take effect WITHOUT restarting the server. (Root cause of a bad field call on
+// 2026-07-03: a stale server process kept pre-fine-tune prompts cached in memory.)
+function freshAgent() {
+  const marker = `${path.sep}agent${path.sep}`;
+  for (const k of Object.keys(require.cache)) {
+    if (k.includes(marker)) delete require.cache[k];
+  }
+  return require('./agent/persona');
+}
+
 // Premortem #7: cap what each LLM call carries — system prompt + the last N exchanges.
 const HISTORY_TURNS = Number(process.env.HISTORY_TURNS) || 12;
 const windowed = (messages) => [messages[0], ...messages.slice(1).slice(-HISTORY_TURNS)];
@@ -120,12 +131,14 @@ async function handleApi(req, res, url, body) {
   if (req.method === 'POST' && url.pathname === '/api/call/start') {
     const lead = leads.find((l) => l.id === body.leadId) || leads[0];
     const callId = crypto.randomUUID();
-    const greeting = greetingFor(lead);
+    const agent = freshAgent(); // pick up any persona edits made since the last call
+    const greeting = agent.greetingFor(lead);
     const personaLang = 'en-IN'; // always open in English; mirror the caller from turn one
     const call = {
       lead,
+      buildPrompt: agent.buildSystemPrompt,
       messages: [
-        { role: 'system', content: buildSystemPrompt(lead, personaLang) },
+        { role: 'system', content: agent.buildSystemPrompt(lead, personaLang) },
         { role: 'assistant', content: greeting.text },
       ],
       startedAt: Date.now(), touched: Date.now(), lastLang: greeting.lang,
@@ -167,7 +180,7 @@ async function handleApi(req, res, url, body) {
     // Mirror the caller's language. LANG_SWITCH_TURNS=1 (default) switches the persona
     // the moment the caller changes language; set 2 in .env if misdetections ping-pong.
     if (nextPersonaLang(call, stt.language_code || '', Number(process.env.LANG_SWITCH_TURNS) || 1)) {
-      call.messages[0].content = buildSystemPrompt(call.lead, call.personaLang);
+      call.messages[0].content = call.buildPrompt(call.lead, call.personaLang);
       console.log(`[Turn] Persona switched to ${call.personaLang}`);
     }
 
@@ -217,9 +230,30 @@ async function handleApi(req, res, url, body) {
         console.error('summary failed:', e.message);
       }
     }
+    // Full turn-by-turn transcript for review — raw LLM output kept (including the
+    // hidden ~~lang|emotion~~ tags) so persona behavior can be audited after the call.
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const transcriptFile = path.join(__dirname, 'data', 'transcripts', `${stamp}-${call.lead.id}.txt`);
+    try {
+      fs.mkdirSync(path.dirname(transcriptFile), { recursive: true });
+      const lines = call.messages
+        .slice(1) // skip the system prompt
+        .filter((m) => !m.content.startsWith('SYSTEM')) // skip injected wrap-up/system notes
+        .map((m) => `${m.role === 'assistant' ? college.agentName.toUpperCase() : 'PARENT'}: ${m.content}`);
+      fs.writeFileSync(
+        transcriptFile,
+        `Call with ${call.lead.parentName} (${call.lead.id}) · ${new Date().toISOString()} · ${durationSec}s\n` +
+          `Lead: ${call.lead.studentName}, ${call.lead.interest}, ${call.lead.area}\n\n` +
+          lines.join('\n\n') + '\n'
+      );
+    } catch (e) {
+      console.error('transcript write failed:', e.message);
+    }
+
     const record = {
       at: new Date().toISOString(), leadId: call.lead.id, parent: call.lead.parentName,
-      durationSec, turns: Math.floor((call.messages.length - 2) / 2), usage: call.usage, ...summary,
+      durationSec, turns: Math.floor((call.messages.length - 2) / 2), usage: call.usage,
+      transcript: path.relative(__dirname, transcriptFile), ...summary,
     };
     fs.appendFileSync(CALL_LOG, JSON.stringify(record) + '\n');
     sessionUsage.calls++;
