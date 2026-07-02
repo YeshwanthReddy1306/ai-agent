@@ -1,8 +1,8 @@
-# Premortem v2 — "It's January 2027 and Phoenix Voice failed. Why?"
+# Premortem v3 — "It's January 2027 and Phoenix Voice failed. Why?"
 
-Round 1 raised 10 risks; every one that can be fixed in code is now fixed (✅ v2). This round
-re-ranks what's left plus **new risks introduced by the v2 fixes themselves**. ✅ = mitigated in
-code, 🔜 = planned, ⚠️ = decision/action only you can take.
+Round 1 raised 10 risks — all code-fixable ones fixed in v2. Round 2 raised 7 new ones (N1–N7) —
+all code-fixable ones now fixed in v3 (voice: **Simran**, bulbul:v3, 48 kHz). This round records
+those fixes and what genuinely remains. ✅ = mitigated in code, 🔜 = planned, ⚠️ = only you can do it.
 
 ## Status of the original 10
 
@@ -19,49 +19,34 @@ code, 🔜 = planned, ⚠️ = decision/action only you can take.
 | 9 | Angry viral moment | ✅ second-no-is-final rule, never-argue EQ rules, escalation line, hard call cap, mood captured in summary |
 | 10 | Codebase rot | ✅ still zero npm deps for the core (ws only for optional telephony); ~1,600 lines total |
 
-## New risks (introduced by v2 or newly visible)
+## Round-2 risks (N1–N7) — status after v3
 
-### N1. The ack clips backfire
-**Likelihood: medium · Damage: medium.** A cheerful "haan…" right after a parent says something sad
-(“vaalla nanna poyaru last year”) sounds sociopathic.
-- ✅ Acks are neutral-calm murmurs, delayed 700 ms, and only fire when the reply is genuinely slow.
-- 🔜 If it ever lands wrong in testing, cut the te/hi cheerful variants and keep only "hmm…".
-- ⚠️ Listen for this specifically in your first 10 test calls.
+| # | Risk | v3 status |
+|---|------|-----------|
+| N1 | Ack clips backfire after sad news | ✅ Acks reduced to strictly neutral murmurs only ("hmm…", "hmm, one second…") in all three languages — no agreement/cheer sounds left to land wrong. Still delayed 700 ms, still only when the reply is slow. |
+| N2 | Mid-reply TTS prosody seam | ✅ Split threshold raised 110 → 200 chars: typical 1–2 sentence replies are now ALWAYS a single TTS call (no seam possible); only genuinely long turns split, and only at a sentence pause. |
+| N3 | Persona drift on long calls | ✅ A ~30-token format reminder is appended to every LLM call (never stored in history): 1–2 sentences, mirror language, emit the tag. Drift can no longer accumulate past a single turn. Fallbacks + `npm test` remain as the safety net. |
+| N4 | Speakerphone/echo self-interruption | ✅ Bridge VAD now env-tunable (`BRIDGE_VAD_LEVEL`, default 600; `BRIDGE_MIN_SPEECH_MS`, default 250) and barge-in requires ~400 ms of sustained speech while the agent is talking — echo blips and coughs no longer cut her off. Web side already covered by echoCancellation + phase gating. |
+| N5 | Twilio bridge untested | ⚠️ Unchanged by design — needs your Twilio creds. First call goes to your own phone with the console open. |
+| N6 | Credit exhaustion mid-demo | ✅ Running session totals now in `/api/health` and logged after every call (calls, STT seconds, LLM tokens, TTS chars). ⚠️ Still check the dashboard balance before a college demo. |
+| N7 | Premature multi-tenant build-out | ✅ Decision recorded: nothing multi-tenant until college #2 signs. No code needed. |
 
-### N2. Parallel-chunk TTS produces a mid-reply voice seam
-**Likelihood: medium · Damage: low.** Two TTS calls = two prosody contexts; the join can sound like
-a tiny edit cut.
-- ✅ Split only happens above 110 chars and only at a sentence boundary (a natural pause point).
-- 🔜 If audible, drop to single-call TTS below 200 chars (one-line change in `lib/sarvam.js`).
+## New in v3 (introduced by the v3 changes — small, watch-only)
 
-### N3. The persona is now long — model drift under pressure
-**Likelihood: medium · Damage: medium.** ~1,400 words of instructions; a small model at
-`reasoning_effort: low` may drop rules deep in a 10-turn call (e.g. forgetting the tag).
-- ✅ Tag parse has a safe fallback (sticky language + warm emotion) so a dropped tag degrades invisibly.
-- ✅ Regression suite catches structural drift cheaply — run it after every persona edit.
-- 🔜 If drift shows up: try `sarvam-105b` (one env var), or compress the persona's FACTS section.
+### V1. `simran` voice + 48 kHz assumptions unverified against the live API
+**Likelihood: low · Damage: low.** Voice set to Simran (bulbul:v3) at 48 kHz per your playground
+choice; both values come straight from Sarvam's published docs, but the first live TTS call is the
+real test. If the API rejects the speaker or rate, the error surfaces cleanly in the UI and it's a
+one-line `.env` change (`AGENT_VOICE`, or drop sample rate to 24000).
 
-### N4. Echo loop on speakerphone
-**Likelihood: medium · Damage: medium.** Parent puts you on speaker; the agent's own voice re-enters
-the mic and the VAD treats it as the parent talking (self-interruption, garbage turns).
-- ✅ Web: browser echoCancellation + mic ignored except in `listening` phase.
-- ⚠️ Telephony: carrier-side echo is usually handled by Twilio, but test speakerphone explicitly;
-  if it self-triggers, raise the bridge VAD threshold (500 → 800) and require 300 ms of speech.
+### V2. 48 kHz audio doubles response payloads
+**Likelihood: certain · Damage: negligible locally.** ~2× the base64 over the wire vs 24 kHz.
+Irrelevant on localhost/LAN demos; if you ever serve this over weak mobile data, set the sample
+rate down in `lib/sarvam.js`. Telephony is unaffected (fixed 8 kHz mulaw).
 
-### N5. Twilio bridge is fresh, untested code
-**Likelihood: high that something needs a tweak · Damage: low if expected.** Mulaw header stripping,
-frame pacing, and barge-in `clear` events are all textbook-correct but unverified against a live stream.
-- ⚠️ First telephony test call should be to YOUR OWN phone, with the bridge console open.
-
-### N6. Free-credit exhaustion mid-demo
-**Likelihood: medium · Damage: embarrassing.** Sarvam free credits are finite; ack generation,
-regression runs, and repeated demos add up.
-- ✅ Usage is now visible per call; acks cached; silence free.
-- ⚠️ Check the dashboard balance before any demo to a college.
-
-### N7. One college.json for what is really multi-tenant SaaS
-**Likelihood: low now · Damage: low.** Selling to a second college means a second config — fine.
-Selling to twenty means auth, tenancy, a DB, and an admin UI. Do NOT build that until college #2 signs.
+### V3. Stale ack cache after voice changes
+✅ Already handled: cache filenames are keyed on a hash of voice + phrase, so switching to Simran
+auto-regenerates clips instead of replaying Kavitha-voiced audio.
 
 ## The two things code cannot fix (unchanged, still the biggest real risks)
 

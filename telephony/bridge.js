@@ -129,12 +129,19 @@ class CallSession {
     for (let i = 0; i < pcm.length; i++) sum += Math.abs(pcm[i]);
     const level = sum / pcm.length;
 
-    if (level > 500) {
+    // Tunable for noisy lines / speakerphone echo (premortem N4):
+    const VAD_LEVEL = Number(process.env.BRIDGE_VAD_LEVEL) || 600;
+    const MIN_SPEECH = Number(process.env.BRIDGE_MIN_SPEECH_MS) || 250;
+    // While the agent is speaking, demand sustained speech (~400ms) before barging in,
+    // so line echo or a cough doesn't cut her off mid-sentence.
+    const startAt = this.sending ? Math.max(400, MIN_SPEECH) : MIN_SPEECH;
+
+    if (level > VAD_LEVEL) {
       this.speechMs += frameMs;
       this.silentMs = 0;
-      if (!this.speaking && this.speechMs > 200) {
+      if (!this.speaking && this.speechMs > startAt) {
         this.speaking = true;
-        this.bargeIn(); // caller talked over the agent — stop agent audio
+        this.bargeIn(); // caller genuinely talked over the agent — stop agent audio
       }
     } else {
       this.silentMs += frameMs;
@@ -170,7 +177,7 @@ class CallSession {
       const emotion = m ? m[2].toLowerCase() : 'warm';
       const text = (m ? raw.slice(0, m.index) : raw).replace(/[*_#`>~]+/g, '').trim();
       this.lastLang = lang;
-      console.log(`[kavitha] ${text}`);
+      console.log(`[agent] ${text}`);
       await this.speak(text, lang, emotion);
     } finally {
       this.busy = false;

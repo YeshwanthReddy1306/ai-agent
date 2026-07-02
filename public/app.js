@@ -6,7 +6,7 @@
 
 const $ = (id) => document.getElementById(id);
 const state = {
-  leads: [], lead: null, callId: null, agentName: 'Kavitha', agentLang: 'en-IN',
+  leads: [], lead: null, callId: null, agentName: 'Simran', agentLang: 'en-IN',
   phase: 'idle', // idle | dialing | speaking | listening | thinking | ended
   timerStart: 0, timerInt: null,
   audioEl: null, audioQueue: [],
@@ -22,7 +22,7 @@ const state = {
 (async function boot() {
   const health = await fetch('/api/health').then((r) => r.json()).catch(() => null);
   if (health) {
-    state.agentName = health.agent || 'Kavitha';
+    state.agentName = health.agent || 'Simran';
     $('collegeName').textContent = health.college;
     $('orbCore').textContent = state.agentName[0];
     $('healthDot').className = 'dot ' + (health.hasKey ? 'ok' : 'bad');

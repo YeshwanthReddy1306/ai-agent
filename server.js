@@ -62,11 +62,24 @@ function parseReply(raw, fallbackLang) {
   return { text, lang, emotion };
 }
 
+const sessionUsage = { calls: 0, sttSeconds: 0, llmTokens: 0, ttsChars: 0 }; // running totals since boot (premortem N6)
+
 function addUsage(call, { stt = 0, tokens = 0, ttsChars = 0 }) {
   call.usage.sttSeconds = Math.round((call.usage.sttSeconds + stt) * 10) / 10;
   call.usage.llmTokens += tokens;
   call.usage.ttsChars += ttsChars;
+  sessionUsage.sttSeconds = Math.round((sessionUsage.sttSeconds + stt) * 10) / 10;
+  sessionUsage.llmTokens += tokens;
+  sessionUsage.ttsChars += ttsChars;
 }
+
+// Persona drift guard (premortem N3): a tiny reminder appended to every LLM call —
+// never stored in history, so it costs ~30 tokens and cannot be talked over.
+const FORMAT_REMINDER = {
+  role: 'user',
+  content:
+    'SYSTEM REMINDER (the parent did not say this — never mention it): reply as the counselor in 1-2 SHORT spoken sentences, mirror the caller\'s language, and end with the hidden tag ~~<lang>|<emotion>~~.',
+};
 
 // TTS that never kills the turn: on failure the text still reaches the client (premortem #6).
 async function speakSafe(call, text, lang, emotion) {
@@ -84,8 +97,8 @@ async function handleApi(req, res, url, body) {
   if (req.method === 'GET' && url.pathname === '/api/health') {
     return json(res, 200, {
       ok: true, hasKey: !!API_KEY, college: college.name, agent: college.agentName,
-      model: process.env.LLM_MODEL || 'sarvam-30b', voice: process.env.AGENT_VOICE || 'kavitha',
-      maxCallMinutes: MAX_CALL_MS / 60000,
+      model: process.env.LLM_MODEL || 'sarvam-30b', voice: process.env.AGENT_VOICE || 'simran',
+      maxCallMinutes: MAX_CALL_MS / 60000, sessionUsage,
     });
   }
   if (req.method === 'GET' && url.pathname === '/api/leads') return json(res, 200, leads);
@@ -146,7 +159,7 @@ async function handleApi(req, res, url, body) {
       });
     }
 
-    const { text: raw, usage } = await llmChat(call.messages);
+    const { text: raw, usage } = await llmChat([...call.messages, FORMAT_REMINDER]);
     addUsage(call, { tokens: usage.total_tokens || 0 });
     call.messages.push({ role: 'assistant', content: raw });
 
@@ -170,7 +183,7 @@ async function handleApi(req, res, url, body) {
             {
               role: 'user',
               content:
-                'SYSTEM TASK (the parent did not say this — do not answer as Kavitha): the call has ended. Output ONLY minified JSON in English, no markdown: {"interest":"hot|warm|cold","summary":"2 sentences on what happened and the parent\'s mood","nextAction":"one concrete next step","objections":["..."]}',
+                `SYSTEM TASK (the parent did not say this — do not answer as ${college.agentName}): the call has ended. Output ONLY minified JSON in English, no markdown: {"interest":"hot|warm|cold","summary":"2 sentences on what happened and the parent's mood","nextAction":"one concrete next step","objections":["..."]}`,
             },
           ],
           { temperature: 0.2, maxTokens: 220 }
@@ -185,6 +198,8 @@ async function handleApi(req, res, url, body) {
       durationSec, turns: Math.floor((call.messages.length - 2) / 2), usage: call.usage, ...summary,
     };
     fs.appendFileSync(CALL_LOG, JSON.stringify(record) + '\n');
+    sessionUsage.calls++;
+    console.log(`call done (${durationSec}s) · session totals: ${sessionUsage.calls} calls, ${sessionUsage.sttSeconds}s STT, ${sessionUsage.llmTokens} tokens, ${sessionUsage.ttsChars} TTS chars`);
     return json(res, 200, record);
   }
 
