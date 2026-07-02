@@ -30,6 +30,8 @@
     "Parent updates": "TODO — confirm the Hyderabad centre's parent-update cadence (tests, progress reports, PTM slots)"
   },
   "compliance": {
+    "brandAuthorized": false,
+    "brandAuthorizedNote": "Set true ONLY after Resonance gives written permission to call parents under their brand. Until then: internal testing only.",
     "maxCallMinutes": 6,
     "note": "Leads in this queue are existing enquiries (walk-ins, website forms, referrals) — not cold DND-registry calls"
   },

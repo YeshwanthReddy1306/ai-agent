@@ -76,3 +76,22 @@ sit inside the working tree, uncommitted, next to a live key in a OneDrive-synce
 2. `npm test` green on the Resonance facts.
 3. Resonance's written OK.
 4. Ten real Telugu-speaking parents on test calls; if ≥8 say "I couldn't tell", ship the pilot.
+
+---
+
+# v4.1 — fix status (2026-07-03)
+
+All ten items were addressed in code; three still carry a ⚠️ half that only you can complete.
+
+| # | Risk | Status |
+|---|------|--------|
+| 1 | TODO/undefined in prompt | ✅ Sanitizer in `agent/persona.js`: TODO facts become explicit "defer to office, never state a number" instructions; results keys remapped (no more `undefined. undefined`). `npm run preflight` gates it (4 leads × 3 languages). ⚠️ Real fees/batch/local results still needed for the pilot — TODOs now warn, not break. |
+| 2 | Brand authorization | ✅ `compliance.brandAuthorized:false` flag + boot and preflight warnings ("internal testing only"). ⚠️ Flip to true only with Resonance's written OK. |
+| 3 | Language ping-pong | ✅ Hysteresis in `lib/textpost.js` (`nextPersonaLang`): persona flips only after 2 consecutive turns in the new language, anchored to the lead's language — wired into server AND bridge. |
+| 4 | Truncated hearing | ✅ Adaptive VAD endpoint (450 ms for short utterances, 650 ms for sentences) + NAMES & SCORES confirm-once rule added to all three personas. |
+| 5 | Gender/greeting regressions | ✅ Register pass is gender-aware (బిడ్డ→అమ్మాయి for daughters, కుమార్తె handled) and lives in one shared module; per-language greetings restored; en-IN acoustic remap now anchored to the LEAD's language (English leads keep the English voice). |
+| 6 | Summary data rot | ✅ Summary prompt rewritten with a filled example; output schema-validated (interest whitelist, placeholder objections like "..." filtered) before anything reaches calls.jsonl. |
+| 7 | Token economics | ✅ History window: every LLM call now carries system + last 12 messages (`HISTORY_TURNS` env), including summaries. ⚠️ Price a full call on the dashboard before quoting Resonance. |
+| 8 | 15-word straitjacket | ✅ All personas + FORMAT_REMINDER now allow TWO short sentences specifically for objection/worry handling; 15 words everywhere else. |
+| 9 | Telephony debt | ✅ Duplicated tag/register/phonetics logic unified into `lib/textpost.js`; bridge got the same hysteresis + history window. ⚠️ Still untested until Twilio creds — first call to your own phone. |
+| 10 | Scratch/key hygiene | ✅ scratch/, cache/, *.bak gitignored (previous commit); `npm run preflight` added as the pre-call ritual. ⚠️ Rotate the API key at dashboard.sarvam.ai (it was shared in chat and lives in a OneDrive-synced .env). |

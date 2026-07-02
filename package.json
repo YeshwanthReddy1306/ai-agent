@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "test": "node test/regression.js",
-    "telephony": "node telephony/bridge.js"
+    "telephony": "node telephony/bridge.js",
+    "preflight": "node scripts/preflight.js"
   },
   "engines": {
     "node": ">=18"

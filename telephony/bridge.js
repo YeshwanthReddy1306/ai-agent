@@ -32,7 +32,8 @@ try {
 }
 
 const { sttTranscribe, llmChat, ttsSpeak } = require('../lib/sarvam');
-const { buildSystemPrompt, greetingFor } = require('../agent/persona');
+const { parseTag, acousticFor, applyRegister, ttsPhonetics, nextPersonaLang } = require('../lib/textpost');
+const { buildSystemPrompt, greetingFor, LANG_CODE } = require('../agent/persona');
 const leads = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'leads.json'), 'utf8'));
 
 const PORT = Number(process.env.TELEPHONY_PORT) || 3200;
@@ -81,7 +82,9 @@ class CallSession {
     this.ws = ws;
     this.lead = lead;
     this.streamSid = null;
-    this.messages = [{ role: 'system', content: buildSystemPrompt(lead) }];
+    this.personaLang = LANG_CODE[lead.language] || 'te-IN';
+    this.streak = { lang: null, count: 0 }; // language-switch hysteresis (premortem #3)
+    this.messages = [{ role: 'system', content: buildSystemPrompt(lead, this.personaLang) }];
     this.lastLang = 'en-IN';
     this.pcm = []; // Int16Array frames while user speaks
     this.speaking = false;
@@ -110,14 +113,7 @@ class CallSession {
   }
 
   async speak(text, lang, emotion) {
-    // Phonetic replacement for BiPC to ensure natural pronunciation
-    const bipcPhonetic = lang === 'te-IN' ? 'బైపీసీ' : (lang === 'hi-IN' ? 'बाय पी सी' : 'By-P-C');
-    const ttsText = text
-      .replace(/bipc/gi, bipcPhonetic)
-      .replace(/b\.i\.p\.c\.?/gi, bipcPhonetic)
-      .replace(/b\s+i\s+p\s+c/gi, bipcPhonetic);
-
-    const audios = await ttsSpeak(ttsText, lang, emotion, { sampleRate: 8000, codec: 'mulaw' });
+    const audios = await ttsSpeak(ttsPhonetics(text, lang), lang, emotion, { sampleRate: 8000, codec: 'mulaw' });
     for (const a of audios) this.sendAudio(toRawMulaw(a));
   }
 
@@ -176,45 +172,23 @@ class CallSession {
       if (!userText) return;
       console.log(`[caller] ${userText}`);
       this.messages.push({ role: 'user', content: userText });
-      const userLang = stt.language_code || 'te-IN';
-      this.messages[0].content = buildSystemPrompt(this.lead, userLang); // dynamically swap persona
+      // persona switches only after 2 consecutive turns in a new language (premortem #3)
+      if (nextPersonaLang(this, stt.language_code || '')) {
+        this.messages[0].content = buildSystemPrompt(this.lead, this.personaLang);
+        console.log(`[bridge] persona switched to ${this.personaLang}`);
+      }
 
-      const { text: raw } = await llmChat(this.messages);
+      // history window (premortem #7): system prompt + the last 12 exchanges
+      const { text: raw } = await llmChat([this.messages[0], ...this.messages.slice(1).slice(-12)]);
       this.messages.push({ role: 'assistant', content: raw });
-      // reuse the same tag format as the web server
-      let lang = this.lastLang;
-      let emotion = 'warm';
-      const tagRegex = /(?:~~)?\s*([a-z]{2,3}-IN)\s*\|\s*(warm|excited|empathetic|calm|urgent|amused|reassuring|concerned|proud)(?:~~|\|)?/gi;
-      let match;
-      while ((match = tagRegex.exec(raw)) !== null) {
-        lang = match[1];
-        emotion = match[2].toLowerCase();
-      }
-      let text = raw.replace(tagRegex, '').replace(/[*_#`>~]+/g, '').trim();
-      
-      // Bulletproof Post-Processing Urban Register Enforcements
-      const replacements = [
-        { pattern: /కుమారుడు/g, replacement: 'అబ్బాయి' },
-        { pattern: /కుమారుని/g, replacement: 'అబ్బాయిని' },
-        { pattern: /పుత్రుడు/g, replacement: 'అబ్బాయి' },
-        { pattern: /రుసుము/g, replacement: 'fees' },
-        { pattern: /నమోదు/g, replacement: 'registration' },
-        { pattern: /ధన్యవాదములు/g, replacement: 'థాంక్స్ అండి' },
-        { pattern: /ధన్యవాదాలు/g, replacement: 'థాంక్స్ అండి' },
-        { pattern: /బిడ్డ/g, replacement: 'అబ్బాయి' },
-        { pattern: /కళాశాల/g, replacement: 'college' },
-        { pattern: /ఆలోచించండి/g, replacement: 'ఒకసారి చూడండి' },
-        { pattern: /ప్రయత్నించండి/g, replacement: 'try చేయండి' },
-        { pattern: /ఆలోచిస్తున్నారా/g, replacement: 'అనుకుంటున్నారా' },
-        { pattern: /ప్రయత్నిస్తున్నారా/g, replacement: 'try చేస్తున్నారా' }
-      ];
-      for (const r of replacements) {
-        text = text.replace(r.pattern, r.replacement);
-      }
+      // shared parsing/register pass — identical to the web server (lib/textpost.js)
+      const parsed = parseTag(raw, this.lastLang);
+      const lang = acousticFor(parsed.lang, this.lead.language);
+      const text = applyRegister(parsed.text, this.lead);
 
       this.lastLang = lang;
       console.log(`[agent] ${text}`);
-      await this.speak(text, lang, emotion);
+      await this.speak(text, lang, parsed.emotion);
     } finally {
       this.busy = false;
     }

@@ -17,7 +17,8 @@ if (fs.existsSync(envPath)) {
 }
 
 const { sttTranscribe, llmChat, ttsSpeak, ackClips, EMOTION_STYLE, TTS_LANGS } = require('./lib/sarvam');
-const { buildSystemPrompt, greetingFor, college } = require('./agent/persona');
+const { parseTag, acousticFor, applyRegister, ttsPhonetics, nextPersonaLang } = require('./lib/textpost');
+const { buildSystemPrompt, greetingFor, college, LANG_CODE } = require('./agent/persona');
 
 const API_KEY = process.env.SARVAM_API_KEY || '';
 const PORT = Number(process.env.PORT) || 3100;
@@ -47,44 +48,15 @@ setInterval(() => {
   for (const [id, c] of calls) if (now - c.touched > 30 * 60000) calls.delete(id);
 }, 5 * 60000).unref();
 
-// Parse the trailing hidden tag: "...spoken words ~~te-IN|excited~~"
-function parseReply(raw, fallbackLang) {
-  let text = raw.trim();
-  let lang = TTS_LANGS.has(fallbackLang) ? fallbackLang : 'te-IN';
-  let emotion = 'warm';
-  const tagRegex = /(?:~~)?\s*([a-z]{2,3}-IN)\s*\|\s*([a-zA-Z]+)(?:~~|\|)?/gi;
-  let match;
-  while ((match = tagRegex.exec(text)) !== null) {
-    if (TTS_LANGS.has(match[1])) {
-      // If LLM wants English, force te-IN acoustic model to prevent jarring voice change
-      lang = match[1] === 'en-IN' ? 'te-IN' : match[1];
-    }
-    emotion = match[2].toLowerCase();
-  }
-
-  text = text.replace(tagRegex, '').replace(/[*_#`>~]+/g, '').replace(/\s{2,}/g, ' ').trim();
-
-  // Bulletproof Post-Processing Urban Register Enforcements
-  const replacements = [
-    { pattern: /కుమారుడు/g, replacement: 'అబ్బాయి' },
-    { pattern: /కుమారుని/g, replacement: 'అబ్బాయిని' },
-    { pattern: /పుత్రుడు/g, replacement: 'అబ్బాయి' },
-    { pattern: /రుసుము/g, replacement: 'fees' },
-    { pattern: /నమోదు/g, replacement: 'registration' },
-    { pattern: /ధన్యవాదములు/g, replacement: 'థాంక్స్ అండి' },
-    { pattern: /ధన్యవాదాలు/g, replacement: 'థాంక్స్ అండి' },
-    { pattern: /బిడ్డ/g, replacement: 'అబ్బాయి' },
-    { pattern: /కళాశాల/g, replacement: 'college' },
-    { pattern: /ఆలోచించండి/g, replacement: 'ఒకసారి చూడండి' },
-    { pattern: /ప్రయత్నించండి/g, replacement: 'try చేయండి' },
-    { pattern: /ఆలోచిస్తున్నారా/g, replacement: 'అనుకుంటున్నారా' },
-    { pattern: /ప్రయత్నిస్తున్నారా/g, replacement: 'try చేస్తున్నారా' }
-  ];
-  for (const r of replacements) {
-    text = text.replace(r.pattern, r.replacement);
-  }
-
-  return { text, lang, emotion };
+// Parse the hidden tag, pin the acoustic voice to the lead's language, and apply the
+// urban-register pass (all shared with the telephony bridge via lib/textpost.js).
+function parseReply(raw, fallbackLang, lead) {
+  const parsed = parseTag(raw, fallbackLang);
+  return {
+    text: applyRegister(parsed.text, lead),
+    lang: acousticFor(parsed.lang, lead?.language),
+    emotion: parsed.emotion,
+  };
 }
 
 const sessionUsage = { calls: 0, sttSeconds: 0, llmTokens: 0, ttsChars: 0 }; // running totals since boot (premortem N6)
@@ -103,19 +75,17 @@ function addUsage(call, { stt = 0, tokens = 0, ttsChars = 0 }) {
 const FORMAT_REMINDER = {
   role: 'user',
   content:
-    'SYSTEM REMINDER (the parent did not say this — never mention it): reply as the counselor in 1-2 SHORT spoken sentences, mirror the caller\'s language, and end with the hidden tag ~~<lang>|<emotion>~~.',
+    'SYSTEM REMINDER (the parent did not say this — never mention it): reply as the counselor in ONE short spoken sentence (max 15 words; TWO short sentences only when handling an objection or worry), and end with the hidden tag ~~<lang>|<emotion>~~.',
 };
+
+// Premortem #7: cap what each LLM call carries — system prompt + the last N exchanges.
+const HISTORY_TURNS = Number(process.env.HISTORY_TURNS) || 12;
+const windowed = (messages) => [messages[0], ...messages.slice(1).slice(-HISTORY_TURNS)];
 
 // TTS that never kills the turn: on failure the text still reaches the client (premortem #6).
 async function speakSafe(call, text, lang, emotion) {
   try {
-    // Phonetic replacement for BiPC to ensure natural pronunciation
-    const bipcPhonetic = lang === 'te-IN' ? 'బైపీసీ' : (lang === 'hi-IN' ? 'बाय पी सी' : 'By-P-C');
-    const ttsText = text
-      .replace(/bipc/gi, bipcPhonetic)
-      .replace(/b\.i\.p\.c\.?/gi, bipcPhonetic)
-      .replace(/b\s+i\s+p\s+c/gi, bipcPhonetic);
-
+    const ttsText = ttsPhonetics(text, lang);
     addUsage(call, { ttsChars: ttsText.length });
     return await ttsSpeak(ttsText, lang, emotion);
   } catch (e) {
@@ -154,13 +124,15 @@ async function handleApi(req, res, url, body) {
     const lead = leads.find((l) => l.id === body.leadId) || leads[0];
     const callId = crypto.randomUUID();
     const greeting = greetingFor(lead);
+    const personaLang = LANG_CODE[lead.language] || 'te-IN';
     const call = {
       lead,
       messages: [
-        { role: 'system', content: buildSystemPrompt(lead) },
+        { role: 'system', content: buildSystemPrompt(lead, personaLang) },
         { role: 'assistant', content: greeting.text },
       ],
       startedAt: Date.now(), touched: Date.now(), lastLang: greeting.lang,
+      personaLang, streak: { lang: null, count: 0 }, // language-switch hysteresis (premortem #3)
       usage: { sttSeconds: 0, llmTokens: 0, ttsChars: 0 }, wrapUpSent: false,
     };
     calls.set(callId, call);
@@ -195,15 +167,19 @@ async function handleApi(req, res, url, body) {
       });
     }
 
-    const userLang = stt.language_code || 'te-IN';
-    call.messages[0].content = buildSystemPrompt(call.lead, userLang); // dynamically swap persona
+    // Persona switches only after 2 consecutive turns in a new language (premortem #3) —
+    // a single STT misdetection on code-mixed speech no longer flips the whole call.
+    if (nextPersonaLang(call, stt.language_code || '')) {
+      call.messages[0].content = buildSystemPrompt(call.lead, call.personaLang);
+      console.log(`[Turn] Persona switched to ${call.personaLang}`);
+    }
 
-    const { text: raw, usage } = await llmChat([...call.messages, FORMAT_REMINDER]);
+    const { text: raw, usage } = await llmChat([...windowed(call.messages), FORMAT_REMINDER]);
     console.log(`[Turn] Raw LLM response: "${raw}"`);
     addUsage(call, { tokens: usage.total_tokens || 0 });
     call.messages.push({ role: 'assistant', content: raw });
 
-    const reply = parseReply(raw, call.lastLang);
+    const reply = parseReply(raw, call.lastLang, call.lead);
     console.log('[Turn] Parsed reply:', reply);
     call.lastLang = reply.lang; // sticky language across turns (premortem #5)
     const audios = await speakSafe(call, reply.text, reply.lang, reply.emotion);
@@ -218,18 +194,28 @@ async function handleApi(req, res, url, body) {
     let summary = { interest: 'unknown', summary: 'Call too short to assess.', nextAction: 'Follow-up call', objections: [] };
     if (call.messages.length > 3) {
       try {
+        // Premortem #6: filled example (not placeholders) + schema validation below, so
+        // template junk like "hot|warm|cold" or ["..."] can never reach calls.jsonl again.
         const { text: raw } = await llmChat(
           [
-            ...call.messages,
+            ...windowed(call.messages),
             {
               role: 'user',
               content:
-                `SYSTEM TASK (the parent did not say this — do not answer as ${college.agentName}): the call has ended. Output ONLY minified JSON in English, no markdown: {"interest":"hot|warm|cold","summary":"2 sentences on what happened and the parent's mood","nextAction":"one concrete next step","objections":["..."]}`,
+                `SYSTEM TASK (the parent did not say this — do not answer as ${college.agentName}): the call has ended. Report on it in ONLY minified JSON, in English, no markdown. "interest" must be exactly one word: hot OR warm OR cold. "objections" lists real objections the parent raised, or [] if none. A correctly formatted example for a DIFFERENT call: {"interest":"warm","summary":"Parent liked the small batches but wants to compare fees with one other college. Mood was friendly and unhurried.","nextAction":"Send fee comparison on WhatsApp and call back Thursday evening.","objections":["fees higher than expected"]}`,
             },
           ],
           { temperature: 0.2, maxTokens: 220 }
         );
-        summary = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
+        const parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
+        summary = {
+          interest: ['hot', 'warm', 'cold'].includes(String(parsed.interest).toLowerCase()) ? String(parsed.interest).toLowerCase() : 'unknown',
+          summary: typeof parsed.summary === 'string' && parsed.summary.length > 10 ? parsed.summary : 'No usable summary generated.',
+          nextAction: typeof parsed.nextAction === 'string' && parsed.nextAction.length > 3 ? parsed.nextAction : 'Follow-up call',
+          objections: (Array.isArray(parsed.objections) ? parsed.objections : []).filter(
+            (o) => typeof o === 'string' && o.length > 3 && !/^\.+$/.test(o.trim())
+          ),
+        };
       } catch (e) {
         console.error('summary failed:', e.message);
       }
@@ -286,4 +272,12 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, () => {
   console.log(`Phoenix Voice Agent -> http://localhost:${PORT}`);
   if (!API_KEY) console.log('WARNING: SARVAM_API_KEY not set — copy .env.example to .env and add your key (free credits at dashboard.sarvam.ai)');
+  // Launch-gate warnings (premortem #1 and #2)
+  const rawFacts = fs.readFileSync(path.join(__dirname, 'agent', 'college.json'), 'utf8');
+  if (/TODO/i.test(rawFacts)) {
+    console.log('WARNING: agent/college.json still has TODO facts — the agent will defer those to "office will confirm". Fill real numbers before any external call (run: npm run preflight).');
+  }
+  if (college.compliance?.brandAuthorized !== true) {
+    console.log(`WARNING: "${college.name}" brand use is NOT marked authorized (compliance.brandAuthorized) — internal testing only.`);
+  }
 });

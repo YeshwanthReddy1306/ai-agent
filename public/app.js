@@ -330,8 +330,11 @@ function onAudioFrame(f32) {
   if (state.speaking) state.chunks.push(new Float32Array(f32));
 
   const utteranceMs = state.chunks.length * frameMs;
-  // end of utterance: ~400ms of silence after speech, or 15s hard cap
-  if ((state.speaking && state.silentFrames * frameMs > 400) || utteranceMs > 15000) {
+  // Adaptive endpoint (premortem #4): quick replies ("haan", "avunu") still end fast at
+  // 450ms, but longer sentences get 650ms so a mid-sentence pause isn't cut off — the
+  // flat 400ms was truncating slow speakers ("9.99.99" GPAs in the call log). 15s cap.
+  const endpointMs = utteranceMs < 1200 ? 450 : 650;
+  if ((state.speaking && state.silentFrames * frameMs > endpointMs) || utteranceMs > 15000) {
     if (state.speaking) sendTurn();
     else startListening();
   }
