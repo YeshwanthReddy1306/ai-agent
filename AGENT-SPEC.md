@@ -10,7 +10,7 @@ If a migration cannot check every box in §8, the migration is rejected.
 
 ## 1. The Non-Negotiables (violating any of these destroys the agent)
 
-1. **LLM: `sarvam-105b`** (Sarvam chat completions, `reasoning_effort: null`, temperature 0.75, max_tokens 220). Indian-language-native generation is the product. Llama/GPT/Claude/Gemini may NOT serve the voice path — they regress Telugu to "bookish counselor" (field-proven failure). Utility tasks off the voice path (summaries, classification) may use other models only if output is English JSON.
+1. **LLM: `sarvam-105b`** (Sarvam chat completions, `reasoning_effort: null`, temperature **0.45** — low temp is REQUIRED for verbatim-script adherence; 0.75 was field-proven (2026-07-03) to paraphrase the playbook into generic counselor-speak and collapse the emotion palette to all-warm — max_tokens 220). Indian-language-native generation is the product. Llama/GPT/Claude/Gemini may NOT serve the voice path — they regress Telugu to "bookish counselor" (field-proven failure). Utility tasks off the voice path (summaries, classification) may use other models only if output is English JSON.
 2. **STT: `saaras:v3`** (Sarvam, `language_code: unknown` for auto-detect). Language detection drives mirroring.
 3. **TTS: `bulbul:v3`, speaker `simran`** — 48 kHz mp3 for web, 8 kHz mulaw for telephony. Speaker chosen by a 26-voice human audition; changing it requires a new audition.
 4. **Persona files are LOCKED** (`.agents/AGENTS.md`): `agent/personas/{te,hi,en}.js`, SHA-256 baseline in `agent/personas/locked/`. `npm run preflight` fails on one byte of drift; `npm run restore-personas` recovers. Re-baseline only on the user's explicit approval.
@@ -63,9 +63,14 @@ messages = [
 ## 5. The Format Reminder (verbatim — `lib/textpost.js formatReminder`)
 
 > SYSTEM REMINDER (the parent did not say this — never mention it): You MUST reply
-> ENTIRELY in {TELUGU (Telugu script) | HINDI (Devanagari script) | ENGLISH}. Reply as
-> the counselor in ONE short spoken sentence (max 15 words; TWO short sentences only when
-> handling an objection or worry), and end with the hidden tag ~~{personaLang}|<emotion>~~.
+> ENTIRELY in {TELUGU (Telugu script) | HINDI (Devanagari script) | ENGLISH}. ONE short
+> spoken sentence (max 15 words; TWO only for an objection or worry). If the parent's
+> words match a playbook situation (fees/distance/competitor objection, trial close,
+> refusal), use your EXACT script — never paraphrase it; on a refusal follow the 3-step
+> ladder IN ORDER (first no = Step 1, never jump to goodbye). Write every number in
+> words, never digits. Choose the emotion tag DELIBERATELY from your EMOTION PALETTE
+> (marks = proud, money = serious, worry = reassuring…) — do NOT default to warm.
+> End with the hidden tag ~~{personaLang}|<emotion>~~.
 
 Appended to every LLM call; never stored in history.
 
