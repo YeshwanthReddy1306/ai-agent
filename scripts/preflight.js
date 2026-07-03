@@ -38,7 +38,28 @@ const todos = (rawFacts.match(/TODO/gi) || []).length;
 if (todos) warn(`college.json has ${todos} TODO field(s) — agent will defer them to "office will confirm"; fill real numbers before the pilot`);
 else ok('college.json fully filled — no TODO facts');
 
-// 4. Brand authorization flag
+// 4. Persona lock (.agents/AGENTS.md): live personas must match the approved baseline
+const crypto = require('crypto');
+const lockedDir = path.join(__dirname, '..', 'agent', 'personas', 'locked');
+const manifestPath = path.join(lockedDir, 'manifest.json');
+if (fs.existsSync(manifestPath)) {
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  let drift = false;
+  for (const [f, hash] of Object.entries(manifest.files)) {
+    const cur = crypto.createHash('sha256')
+      .update(fs.readFileSync(path.join(__dirname, '..', 'agent', 'personas', f)))
+      .digest('hex');
+    if (cur !== hash) {
+      drift = true;
+      fail(`persona ${f} DIFFERS from the locked baseline (${manifest.lockedAt}) — run "npm run restore-personas" to undo the drift, or "npm run lock-personas" ONLY if the user explicitly approved the change`);
+    }
+  }
+  if (!drift) ok(`personas match the locked baseline (locked ${manifest.lockedAt})`);
+} else {
+  warn('no persona lock baseline yet — run: npm run lock-personas');
+}
+
+// 5. Brand authorization flag
 if (college.compliance?.brandAuthorized !== true) {
   warn(`brand "${college.name}" not marked authorized (compliance.brandAuthorized) — internal testing only`);
 } else ok('brand use authorized');
