@@ -214,7 +214,7 @@ function stopPlayback() {
 function playReply(reply, audios) {
   stopAck();
   state.agentLang = reply.lang || state.agentLang;
-  addBubble('agent', reply.text, [reply.lang, reply.emotion]);
+  addBubble('agent', reply.text, [reply.lang, reply.emotion, reply._latency]);
   if (!audios || !audios.length) {
     // TTS degraded — text is on screen, keep the conversation alive
     return state.pendingEnd ? endCall() : startListening();
@@ -354,6 +354,7 @@ async function sendTurn(retried) {
     if (!state.callId) return; // call ended while waiting
     if (r.empty) { stopAck(); return startListening(); } // noise only
     addBubble('user', r.userText, [r.userLang || '']);
+    if (r.timings) r.reply._latency = (r.timings.total / 1000).toFixed(1) + 's';
     if (r.wrapUp) state.pendingEnd = true; // server hit the call cap — end after this reply plays
     if (r.reply?.lang) loadAcks(r.reply.lang); // keep ack cache in the agent's language
     playReply(r.reply, r.audios);

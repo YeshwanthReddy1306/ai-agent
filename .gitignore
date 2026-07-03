@@ -3,5 +3,6 @@ node_modules/
 data/calls.jsonl
 data/cache/
 data/transcripts/
+data/edge-cases.jsonl
 scratch/
 *.bak

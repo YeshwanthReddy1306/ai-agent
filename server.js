@@ -16,7 +16,7 @@ if (fs.existsSync(envPath)) {
   }
 }
 
-const { sttTranscribe, llmChat, ttsSpeak, ackClips, EMOTION_STYLE, TTS_LANGS } = require('./lib/sarvam');
+const { sttTranscribe, llmChat, ttsSpeak, ackClips, EMOTION_STYLE, TTS_LANGS, serviceHealth } = require('./lib/sarvam');
 const { parseTag, applyRegister, ttsPhonetics, nextPersonaLang, formatReminder } = require('./lib/textpost');
 const { buildSystemPrompt, greetingFor, college, LANG_CODE } = require('./agent/persona');
 
@@ -62,6 +62,19 @@ function parseReply(raw, fallbackLang, lead) {
 }
 
 const sessionUsage = { calls: 0, sttSeconds: 0, llmTokens: 0, ttsChars: 0 }; // running totals since boot (premortem N6)
+
+// Turn-latency tracking (RCOS F3, honest version): stage timings per turn, P50/P95
+// over the last 500 turns, surfaced in /api/health and per-turn in the UI.
+const turnLatencies = [];
+function recordLatency(ms) {
+  turnLatencies.push(ms);
+  if (turnLatencies.length > 500) turnLatencies.shift();
+}
+function percentile(p) {
+  if (!turnLatencies.length) return 0;
+  const sorted = [...turnLatencies].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * p) - 1)];
+}
 
 function addUsage(call, { stt = 0, tokens = 0, ttsChars = 0 }) {
   call.usage.sttSeconds = Math.round((call.usage.sttSeconds + stt) * 10) / 10;
@@ -109,6 +122,8 @@ async function handleApi(req, res, url, body) {
       ok: true, hasKey: !!API_KEY, college: college.name, agent: college.agentName,
       model: process.env.LLM_MODEL || 'sarvam-30b', voice: process.env.AGENT_VOICE || 'simran',
       maxCallMinutes: MAX_CALL_MS / 60000, sessionUsage,
+      latency: { p50: percentile(0.5), p95: percentile(0.95), turns: turnLatencies.length },
+      services: serviceHealth,
     });
   }
   if (req.method === 'GET' && url.pathname === '/api/leads') return json(res, 200, leads);
@@ -155,7 +170,9 @@ async function handleApi(req, res, url, body) {
     if (!call) return json(res, 404, { error: 'Unknown callId' });
     call.touched = Date.now();
 
+    const t0 = Date.now();
     const stt = await sttTranscribe(Buffer.from(body.audio, 'base64'), 'unknown');
+    const tStt = Date.now();
     addUsage(call, { stt: stt.seconds || 0 });
     const userText = (stt.transcript || '').trim();
     console.log(`[Turn] User transcript: "${userText}"`);
@@ -185,6 +202,7 @@ async function handleApi(req, res, url, body) {
     }
 
     const { text: raw, usage } = await llmChat([...windowed(call.messages), formatReminder(call.personaLang)]);
+    const tLlm = Date.now();
     console.log(`[Turn] Raw LLM response: "${raw}"`);
     addUsage(call, { tokens: usage.total_tokens || 0 });
     call.messages.push({ role: 'assistant', content: raw });
@@ -193,7 +211,11 @@ async function handleApi(req, res, url, body) {
     console.log('[Turn] Parsed reply:', reply);
     call.lastLang = reply.lang; // sticky language across turns (premortem #5)
     const audios = await speakSafe(call, reply.text, reply.lang, reply.emotion);
-    return json(res, 200, { userText, userLang: stt.language_code, reply, audios, wrapUp });
+    const tEnd = Date.now();
+    const timings = { stt: tStt - t0, llm: tLlm - tStt, tts: tEnd - tLlm, total: tEnd - t0 };
+    recordLatency(timings.total);
+    console.log(`[Turn] latency: stt ${timings.stt}ms · llm ${timings.llm}ms · tts ${timings.tts}ms · total ${timings.total}ms (p95 ${percentile(0.95)}ms)`);
+    return json(res, 200, { userText, userLang: stt.language_code, reply, audios, wrapUp, timings });
   }
 
   if (req.method === 'POST' && url.pathname === '/api/call/end') {
@@ -212,7 +234,7 @@ async function handleApi(req, res, url, body) {
             {
               role: 'user',
               content:
-                `SYSTEM TASK (the parent did not say this — do not answer as ${college.agentName}): the call has ended. Report on it in ONLY minified JSON, in English, no markdown. "interest" must be exactly one word: hot OR warm OR cold. "objections" lists real objections the parent raised, or [] if none. A correctly formatted example for a DIFFERENT call: {"interest":"warm","summary":"Parent liked the small batches but wants to compare fees with one other college. Mood was friendly and unhurried.","nextAction":"Send fee comparison on WhatsApp and call back Thursday evening.","objections":["fees higher than expected"]}`,
+                `SYSTEM TASK (the parent did not say this — do not answer as ${college.agentName}): the call has ended. Report on it in ONLY minified JSON, in English, no markdown. "interest" must be exactly one word: hot OR warm OR cold. "objections" lists real objections the parent raised, or [] if none. "unansweredQuestions" lists questions the parent asked that the counselor could NOT answer from her facts (had to defer to the office), or [] if none. A correctly formatted example for a DIFFERENT call: {"interest":"warm","summary":"Parent liked the small batches but wants to compare fees with one other college. Mood was friendly and unhurried.","nextAction":"Send fee comparison on WhatsApp and call back Thursday evening.","objections":["fees higher than expected"],"unansweredQuestions":["exact bus fee from Miyapur"]}`,
             },
           ],
           { temperature: 0.2, maxTokens: 220 }
@@ -225,7 +247,19 @@ async function handleApi(req, res, url, body) {
           objections: (Array.isArray(parsed.objections) ? parsed.objections : []).filter(
             (o) => typeof o === 'string' && o.length > 3 && !/^\.+$/.test(o.trim())
           ),
+          unansweredQuestions: (Array.isArray(parsed.unansweredQuestions) ? parsed.unansweredQuestions : []).filter(
+            (q) => typeof q === 'string' && q.length > 3 && !/^\.+$/.test(q.trim())
+          ),
         };
+        // Edge-case capture (RCOS F2, honest version): every question the agent could not
+        // answer becomes a review item. A human answers it, adds it to college.json faq,
+        // and the knowledge gap closes — the learn loop with zero new infrastructure.
+        for (const q of summary.unansweredQuestions) {
+          fs.appendFileSync(
+            path.join(__dirname, 'data', 'edge-cases.jsonl'),
+            JSON.stringify({ at: new Date().toISOString(), leadId: call.lead.id, parent: call.lead.parentName, question: q, status: 'open' }) + '\n'
+          );
+        }
       } catch (e) {
         console.error('summary failed:', e.message);
       }

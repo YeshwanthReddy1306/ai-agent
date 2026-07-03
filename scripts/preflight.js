@@ -59,7 +59,27 @@ if (fs.existsSync(manifestPath)) {
   warn('no persona lock baseline yet — run: npm run lock-personas');
 }
 
-// 5. Brand authorization flag
+// 5. Facts freshness (RCOS F1, honest version): fees/results go stale silently.
+const FACTS_MAX_AGE_DAYS = Number(process.env.FACTS_MAX_AGE_DAYS) || 30;
+if (!college.factsUpdatedAt) {
+  warn('college.json has no factsUpdatedAt date — add it whenever facts are verified');
+} else {
+  const ageDays = Math.floor((Date.now() - new Date(college.factsUpdatedAt).getTime()) / 86400000);
+  if (ageDays > FACTS_MAX_AGE_DAYS) warn(`facts are ${ageDays} days old (verified ${college.factsUpdatedAt}) — re-verify fees/results/deadlines with the office`);
+  else ok(`facts verified ${ageDays} day(s) ago (${college.factsUpdatedAt})`);
+}
+
+// 6. Open edge cases (unanswered parent questions waiting for a human answer)
+const edgeFile = path.join(__dirname, '..', 'data', 'edge-cases.jsonl');
+if (fs.existsSync(edgeFile)) {
+  const open = fs.readFileSync(edgeFile, 'utf8').split('\n').filter(Boolean)
+    .map((l) => { try { return JSON.parse(l); } catch { return null; } })
+    .filter((e) => e && e.status === 'open');
+  if (open.length) warn(`${open.length} open edge-case question(s) in data/edge-cases.jsonl — answer them and add to college.json faq`);
+  else ok('no open edge-case questions');
+}
+
+// 7. Brand authorization flag
 if (college.compliance?.brandAuthorized !== true) {
   warn(`brand "${college.name}" not marked authorized (compliance.brandAuthorized) — internal testing only`);
 } else ok('brand use authorized');
