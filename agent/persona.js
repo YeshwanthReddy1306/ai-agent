@@ -40,13 +40,25 @@ function sanitizedCollege() {
 
 function buildSystemPrompt(lead, langCode = 'te-IN') {
   const safe = sanitizedCollege();
+  // Trim the long scholarship paragraph to the core slabs (edge-cases injected on demand).
+  safe.scholarships = 'Scholarships come from the ResoNET / MegaResoFAST test and apply to TUITION only. Slabs by score: 95%+ = 100%, 90-95% = 75%, 85-90% = 60%, 80-85% = 50%, 75-80% = 30%, 50-75% = 10%. Earlier admission earns a larger scholarship. Give an exact slab only if the parent tells you the score; otherwise offer to book the test. (Board-marks, Olympiad, KVPY/NTSE and Defence/single-mother/sibling concessions also exist — mention only if the parent asks.)';
+  // H3 trim: keep the COMMON facts inline (fees, scholarship slabs, results, batch,
+  // contact) so frequent questions are answered instantly; the long tail (full campus
+  // addresses, DLPD, brochures, scholarship edge-cases) is injected on demand by
+  // lib/facts.js only on turns where the parent asks. This shrinks the per-turn prompt.
   const streams = Object.entries(safe.streams)
     .map(([k, v]) => `- ${k}: ${v.feePerYear}/year. ${v.note}`)
     .join('\n');
-  const campuses = safe.campuses
-    .map((c) => `- ${c.area} (${c.landmark}) — ${c.type}`)
-    .join('\n');
+  // Campuses: nearest to the lead + a count note, not all 34 addresses.
+  const area = (lead.area || '').toLowerCase();
+  const near = safe.campuses.filter((c) => area && c.area.toLowerCase().includes(area.split(' ')[0]));
+  const shown = (near.length ? near : safe.campuses.slice(0, 2));
+  const campuses = shown.map((c) => `- ${c.area} (${c.landmark})`).join('\n')
+    + `\n- ${safe.campusCountNote || '34 campuses across Hyderabad — ask for the nearest and I will give the exact address.'}`;
+  // FAQ: core subset inline; the rest is injected on demand.
+  const CORE_FAQ = ['Batch size', 'Registration', 'Parent updates'];
   const faq = Object.entries(safe.faq || {})
+    .filter(([k]) => CORE_FAQ.includes(k))
     .map(([k, v]) => `- ${k}: ${v}`)
     .join('\n');
 
