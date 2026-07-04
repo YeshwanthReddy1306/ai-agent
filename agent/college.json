@@ -1,40 +1,60 @@
 {
   "name": "Resonance Hyderabad",
   "agentName": "Sneha",
-  "factsUpdatedAt": "2026-07-03",
+  "factsUpdatedAt": "2026-07-04",
+  "demoNames": { "inbound": "Orbit", "outbound": "Lumen" },
   "campuses": [
-    { "area": "Madhapur", "landmark": "Kavuri Hills, Kakatiya Hills Road", "type": "co-ed day scholar + hostel (main admissions campus)" },
-    { "area": "Kukatpally", "landmark": "near KPHB / JNTU", "type": "co-ed day scholar + boys hostel" }
+    { "area": "Madhapur (Head Office / Admissions)", "landmark": "Plot 388, Kakateeya Hills Rd 8, Kavuri Hills", "type": "co-ed day scholar + main admissions campus" },
+    { "area": "Madhapur (Global Campus)", "landmark": "Kavuri Hills, Guttala Begumpet", "type": "co-ed day scholar, SAT / global (JEE Adv + SAT/AP/IELTS)" },
+    { "area": "Kukatpally", "landmark": "Western Hills, Pragathi Nagar Rd, opp JNTU", "type": "co-ed day scholar" },
+    { "area": "Attapur", "landmark": "MJK Plaza, Pillar No. 211, Chintalmet", "type": "co-ed day scholar" },
+    { "area": "Dilsukhnagar", "landmark": "Kamala Nagar, Gaddiannaram, near Metro", "type": "co-ed day scholar" },
+    { "area": "Nallagandla", "landmark": "HIG, opp Aparna Cyber Life", "type": "co-ed day scholar" },
+    { "area": "Miyapur", "landmark": "Miyapur X roads, beside Anagara Restaurant", "type": "co-ed day scholar" },
+    { "area": "ECIL", "landmark": "Mahesh Nagar, opp Radhika Theater", "type": "co-ed day scholar" },
+    { "area": "Habsiguda", "landmark": "Tarnaka to Uppal Rd, beside Max showroom", "type": "co-ed day scholar" },
+    { "area": "Madhapur — Kakatiya / Sathavahana", "landmark": "Ayyappa Society", "type": "boys residential campuses" },
+    { "area": "Madhapur — Chanakya / Mourya", "landmark": "Ayyappa Society / Mega Hills", "type": "girls residential campuses (high security)" }
   ],
+  "campusCountNote": "34 campuses across Hyderabad — co-ed day scholar hubs plus separate boys' and girls' residential campuses. Give the parent the campus nearest their area.",
   "streams": {
-    "MPC + IIT-JEE": { "feePerYear": "TODO — paste exact fee", "note": "Integrated Intermediate MPC with IIT-JEE (Main + Advanced) coaching, All India Test Series, Daily Practice Papers (DPPs)" },
-    "MPC + EAMCET": { "feePerYear": "TODO — paste exact fee", "note": "Intermediate MPC focused on EAMCET/EAPCET for engineering seats in Telangana & AP" },
-    "BiPC + NEET": { "feePerYear": "TODO — paste exact fee", "note": "Integrated Intermediate BiPC with NEET/AIIMS coaching, NCERT-line teaching" },
-    "MPC + SAT": { "feePerYear": "TODO — paste exact fee", "note": "Intermediate MPC with SAT prep for students targeting foreign/private university admissions" },
-    "JEE Long Term": { "feePerYear": "TODO — paste exact fee", "note": "Post-Intermediate / repeater long-term classroom program for JEE (Main + Advanced)" },
-    "NEET Long Term": { "feePerYear": "TODO — paste exact fee", "note": "Post-Intermediate / repeater long-term classroom program for NEET" }
+    "MPC + JEE (Main & Advanced)": { "feePerYear": "Day scholar: ₹1,60,000 (year 1) + ₹1,70,000 (year 2) = ₹3,30,000 total for two years. Residential: ₹2,60,000 + ₹2,80,000 = ₹5,40,000 total.", "note": "Flagship integrated Intermediate MPC with full IIT-JEE Main + Advanced coaching, DPPs, All India Test Series, SAPER reports" },
+    "MPC + JEE (Main only)": { "feePerYear": "Day scholar: ₹3,00,000 total for two years (₹1,45,000 + ₹1,55,000). Residential: ₹5,00,000 total.", "note": "Intermediate MPC focused on JEE Main / EAPCET for engineering seats" },
+    "MPC + JEE Advanced + SAT (Global)": { "feePerYear": "Day scholar: ₹5,90,000 total for two years. Residential: ₹8,10,000 total. Available at the Global Campus, Madhapur.", "note": "For students targeting international universities — combines JEE Advanced with SAT / AP / IELTS and BITSAT/EAPCET safety nets" },
+    "BiPC + NEET": { "feePerYear": "Day scholar: ₹3,00,000 total for two years (₹1,45,000 + ₹1,55,000). Residential: ₹5,00,000 total.", "note": "Integrated Intermediate BiPC with NEET/AIIMS coaching, NCERT-line teaching, botany/zoology labs" },
+    "Long-term (Repeaters / droppers)": { "feePerYear": "₹99,000 to ₹1,58,000 for one intensive year (day scholar); residential scales up proportionately.", "note": "One-year compressed program for 12th-pass repeaters to maximise JEE/NEET scores" },
+    "Distance / Online (DLPD)": { "feePerYear": "Live online JEE Main ₹46,000-₹50,000/year; JEE Advanced ₹76,000-₹80,000/year; Study-Material Package ₹17,000-₹24,500; All India Test Series ₹4,000-₹6,500.", "note": "For students who cannot attend a physical campus — live classes, AITS, MAHAPACK study material" }
   },
-  "hostel": { "feePerYear": "TODO — paste exact hostel fee", "note": "AC and non-AC rooms, veg/non-veg mess, warden supervision" },
+  "hostel": { "feePerYear": "₹1,05,000 per year (₹2,10,000 for the full two-year program) — this is the residential premium over the day-scholar fee.", "note": "Covers hostel admission, seat rent, mess (veg & non-veg), library, internal exams and sports. Separate high-security boys' and girls' campuses with warden supervision; fees include 18% GST" },
   "results": {
-    "brandWide": "Resonance (national): 52,395+ JEE Advanced selections, 2,57,576+ JEE Main selections, 22,000+ NEET selections across its history",
-    "hyderabad2025": "TODO — paste Hyderabad centre's local JEE/NEET seats & topper ranks (do NOT use national numbers as if they were local)"
+    "brandWide": "Resonance nationally: 52,000+ IIT qualifiers since 2002 (originally founded in Kota, 2001).",
+    "hyderabad2025": "Hyderabad campuses (2024-25): 181 IIT selections, 275 NIT/IIIT/BITS seats, 76 MBBS seats. Telangana EAPCET: 322 seats in the top-10 colleges, 712 in the top-30, and 443 students in the state top-10 of the TG Intermediate board. Elite ranks: Abhinav Chitturi AIR 11 in JEE Advanced 2026 (17 Hyderabad students under AIR 1000); Kakarla Jeevan Sai Kumar AIR 18 in NEET UG 2025 (Telugu states topper)."
   },
-  "batchSize": "TODO — confirm max students per section (e.g. merit batches with weekly performance tracking)",
-  "scholarships": "Admission and scholarship are decided by the ResoNET test (Resonance National Entrance Test). Scholarship percentage is based on ResoNET marks — up to 100% tuition waiver; higher marks = higher scholarship. Every selected JEE (Main/Advanced), Pre-Medical (NEET) or Board-division student gets a FLAT MINIMUM 50% scholarship (this minimum does NOT apply to PCCP classes 4-10). Test mode matters: taking ResoNET at a Resonance centre (invigilated) = eligible for up to 100%; taking it online from home = up to 50% only. Exact mark-to-percentage slabs are revealed with the ResoNET result — never invent a specific slab; if a parent asks 'my child scored X, what % will they get', say the exact percentage is confirmed on the ResoNET result and offer to book the test.",
-  "admissionProcess": "Free counselling session (phone or campus visit) -> register for ResoNET scholarship-cum-admission test (at centre for max scholarship, or online) -> ResoNET result gives admission + scholarship % -> seat confirmation with fee payment. Fees are typically split into installments (a large first installment at admission, balance within ~60 days). Confirm current installment terms with the admissions office.",
-  "contact": { "phone": "+91 9121219858", "office": "Admissions office; campus tours by appointment. Corporate/national helpline: +91-744-2777777" },
+  "batchSize": "40 to 60 students per section — deliberately much smaller than Narayana/Sri Chaitanya (80-120), so every child gets daily doubt-clearing, Daily Practice Problems (DPPs) and a personal SAPER performance report (the 'RESO Way').",
+  "scholarships": "Scholarships are decided by the ResoNET / MegaResoFAST entrance test and apply to the TUITION component only (hostel, study material and infrastructure fees are separate). Standard tuition-waiver slabs by test score: 95%+ = 100%; 90-95% = 75%; 85-90% = 60%; 80-85% = 50%; 75-80% = 30%; 50-75% = 10%. Alternative merit paths: Class-X board 95%+ = 100% waiver or a flat ₹40,000 concession (sliding down to ₹10,000 for 80-85%); Olympiad Stage III = 100%, Stage II = 90%, Stage I = 75%; KVPY final = 50%, NTSE Level II = 40%. Demographic concessions: children of Defence/paramilitary = 40%, wards of single mothers = 50%, sibling discount 10-25%. Earlier admission earns a larger scholarship — the concession value decreases month by month from September to April, so booking early secures a lower net fee. Give an exact slab only if the parent tells you the child's test score or board %; otherwise offer to book the ResoNET test.",
+  "admissionProcess": "Admission is by the 3-stage Resonance Eligibility Test (RET), not just fee payment. Stage 1: foundational screening (NCERT-based, online or offline, need 75% to advance). Stage 2: advanced analytical written test (need 75%). Stage 3: one-on-one personal evaluation with senior faculty. Register at apply.resonancehyderabad.com. Scholarship % comes from the ResoNET/MegaResoFAST score. Fees can be paid lump-sum (₹5,000 discount) or in 2-3 installments (a large first installment at admission, balance within ~60 days).",
+  "contact": { "phone": "+91 91212 19858", "office": "Head office & admissions: Kavuri Hills, Madhapur. Admissions +91 91212 19858, email admissions@resonancehyderabad.com. 34 campuses across Hyderabad." },
   "faq": {
-    "What is ResoNET": "ResoNET is Resonance's own scholarship-cum-admission test. Your score decides both your admission and your scholarship percentage (up to 100%).",
-    "Online vs classroom": "Resonance Hyderabad offers integrated Intermediate + coaching in classroom; distance/online (DLP) programs also exist for JEE, NEET and BITSAT.",
-    "Number of campuses": "Resonance has an extensive campus network across Hyderabad for Intermediate integrated with IIT-JEE and NEET preparation.",
-    "Study material": "Daily Practice Papers (DPPs), topic-wise tests, All India Test Series, recorded lectures and doubt-clearing sessions.",
-    "Parent updates": "TODO — confirm the Hyderabad centre's parent-update cadence (tests, progress reports, PTM slots)"
+    "Batch size": "40 to 60 students per section — far smaller than the 80-120 at Narayana or Sri Chaitanya, so your child gets real personal attention.",
+    "SAT / global program": "Available at the Global Campus, Madhapur — MPC + JEE Advanced + SAT/AP/IELTS for students targeting international universities.",
+    "Repeaters / droppers": "Yes — a one-year intensive long-term program for 12th-pass repeaters, ₹99,000 to ₹1,58,000 as a day scholar.",
+    "Distance / online": "DLPD live online classes, All India Test Series, and study-material packages for JEE and NEET.",
+    "GST": "Fees are inclusive of 18% GST, as required by government rules for coaching.",
+    "Lump-sum discount": "A flat ₹5,000 off if you pay the full fee at once instead of in installments.",
+    "Registration": "Apply at apply.resonancehyderabad.com or just call the admissions office and we'll guide you.",
+    "Parent updates": "Continuous evaluation with Daily Practice Problems, weekly-style tests and personal SAPER performance reports."
+  },
+  "brochures": {
+    "YCCP ResoNET Leaflet (2026)": "https://www.resonance.ac.in/applyonline/downloads/2025/yccp-resonet-leaflet-2026.pdf",
+    "Residential Program Leaflet": "https://www.resonance.ac.in/applyonline-info/downloads/2023/unique-integrated-residential-program-leaflet-v4.pdf",
+    "PCCP Brochure (classes 5-10)": "https://www.resonance.ac.in/sc/post/attachment/(4218)-pccp-brochure-2022-23.pdf",
+    "Distance Learning (DLPD) Leaflet": "https://www.dlpd.resonance.ac.in/downloads/info-leaflet-XI-XII.pdf"
   },
   "compliance": {
     "brandAuthorized": false,
-    "brandAuthorizedNote": "Set true ONLY after Resonance gives written permission to call parents under their brand. Until then: internal testing only.",
-    "maxCallMinutes": 6,
-    "note": "Leads in this queue are existing enquiries (walk-ins, website forms, referrals) — not cold DND-registry calls"
+    "brandAuthorizedNote": "Set true only after Resonance gives written permission to call parents under their brand. Internal testing / pitch demo until then.",
+    "maxCallMinutes": 20,
+    "note": "Leads are existing enquiries (walk-ins, website forms, referrals), not cold DND-registry calls. Avg call ~7 min, up to 15 for hot leads."
   },
   "discloseAiIfPressed": true
 }
