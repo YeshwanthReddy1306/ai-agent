@@ -22,6 +22,7 @@ const { spokenNumbers } = require('./lib/numbers');
 const crm = require('./lib/crm');
 const scheduler = require('./lib/scheduler');
 const { brainStatus } = require('./lib/brain');
+const { summarize } = require('./lib/callsummary');
 const { buildSystemPrompt, greetingFor, college, LANG_CODE } = require('./agent/persona');
 const { graph } = require('./agent/graph');
 const { routeFastPath } = require('./lib/fast-path/faq-rules');
@@ -56,7 +57,7 @@ setInterval(() => {
 }, 5 * 60000).unref();
 
 // Follow-up scheduler tick — marks due reminders/follow-ups every minute (sends once a channel is wired).
-setInterval(() => { try { scheduler.tick(); } catch (e) { console.error('scheduler tick:', e.message); } }, 60000).unref();
+setInterval(() => { Promise.resolve(scheduler.tick()).catch((e) => console.error('scheduler tick:', e.message)); }, 60000).unref();
 
 // Parse the hidden tag and apply the urban-register pass (shared with the telephony
 // bridge via lib/textpost.js). Each reply is voiced in ITS OWN language model — the
@@ -308,49 +309,19 @@ async function handleApi(req, res, url, body) {
     if (!call) return json(res, 404, { error: 'Unknown callId' });
     calls.delete(body.callId);
     const durationSec = Math.round((Date.now() - call.startedAt) / 1000);
-    let summary = { interest: 'unknown', summary: 'Call too short to assess.', nextAction: 'Follow-up call', objections: [] };
-    if (call.messages.length > 3) {
-      try {
-        // Premortem #6: filled example (not placeholders) + schema validation below, so
-        // template junk like "hot|warm|cold" or ["..."] can never reach calls.jsonl again.
-        const { text: raw } = await llmChat(
-          [
-            ...windowed(call.messages),
-            {
-              role: 'user',
-              content:
-                `SYSTEM TASK (the parent did not say this — do not answer as ${college.agentName}): the call has ended. Report on it in ONLY minified JSON, in English, no markdown. "interest" must be exactly one word: hot OR warm OR cold. "objections" lists real objections the parent raised, or [] if none. "unansweredQuestions" lists questions the parent asked that the counselor could NOT answer from her facts, or [] if none. "appointment" reports whether the parent AGREED to a campus visit: {"booked":true,"when":"Saturday morning"} if they clearly agreed to a specific time, else {"booked":false,"when":null}. A correctly formatted example for a DIFFERENT call: {"interest":"warm","summary":"Parent liked the small batches but wants to compare fees with one other college. Mood was friendly and unhurried.","nextAction":"Send fee comparison on WhatsApp and call back Thursday evening.","objections":["fees higher than expected"],"unansweredQuestions":["exact bus fee from Miyapur"],"appointment":{"booked":false,"when":null}}`,
-            },
-          ],
-          { temperature: 0.2, maxTokens: 220 }
+    // Shared summariser — identical logic on the phone bridge (audit H1).
+    const summary = await summarize(call.messages, college.agentName);
+    // Edge-case capture (RCOS F2): every question the agent could not answer becomes a
+    // review item — a human answers it, adds it to college.json faq, gap closed.
+    try {
+      for (const q of summary.unansweredQuestions) {
+        fs.appendFileSync(
+          path.join(__dirname, 'data', 'edge-cases.jsonl'),
+          JSON.stringify({ at: new Date().toISOString(), leadId: call.lead.id, parent: call.lead.parentName, question: q, status: 'open' }) + '\n'
         );
-        const parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
-        summary = {
-          interest: ['hot', 'warm', 'cold'].includes(String(parsed.interest).toLowerCase()) ? String(parsed.interest).toLowerCase() : 'unknown',
-          summary: typeof parsed.summary === 'string' && parsed.summary.length > 10 ? parsed.summary : 'No usable summary generated.',
-          nextAction: typeof parsed.nextAction === 'string' && parsed.nextAction.length > 3 ? parsed.nextAction : 'Follow-up call',
-          objections: (Array.isArray(parsed.objections) ? parsed.objections : []).filter(
-            (o) => typeof o === 'string' && o.length > 3 && !/^\.+$/.test(o.trim())
-          ),
-          unansweredQuestions: (Array.isArray(parsed.unansweredQuestions) ? parsed.unansweredQuestions : []).filter(
-            (q) => typeof q === 'string' && q.length > 3 && !/^\.+$/.test(q.trim())
-          ),
-          appointment: parsed.appointment && parsed.appointment.booked === true
-            ? { booked: true, when: typeof parsed.appointment.when === 'string' ? parsed.appointment.when : 'time to confirm' }
-            : { booked: false, when: null },
-        };
-        // Edge-case capture (RCOS F2, honest version): every question the agent could not
-        // answer becomes a review item. A human answers it, adds it to college.json faq,
-        // and the knowledge gap closes — the learn loop with zero new infrastructure.
-        for (const q of summary.unansweredQuestions) {
-          fs.appendFileSync(
-            path.join(__dirname, 'data', 'edge-cases.jsonl'),
-            JSON.stringify({ at: new Date().toISOString(), leadId: call.lead.id, parent: call.lead.parentName, question: q, status: 'open' }) + '\n'
-          );
-        }
-      } catch (e) {
-        console.error('summary failed:', e.message);
       }
+    } catch (e) {
+      console.error('edge-case write failed:', e.message);
     }
     // Full turn-by-turn transcript for review — raw LLM output kept (including the
     // hidden ~~lang|emotion~~ tags) so persona behavior can be audited after the call.
@@ -397,8 +368,27 @@ function json(res, code, obj) {
 
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
 
+const ACCESS_SECRET = process.env.ACCESS_SECRET || '';
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
+
+  // Shared-secret gate (H4): if ACCESS_SECRET is set, require it before ANY route so a
+  // shared demo link can't be used by strangers to burn Sarvam/Groq/Twilio credits.
+  // Accept it via HTTP Basic auth (browser prompts once) OR a ?key= query param.
+  if (ACCESS_SECRET) {
+    const auth = req.headers.authorization || '';
+    let ok = url.searchParams.get('key') === ACCESS_SECRET;
+    if (!ok && auth.startsWith('Basic ')) {
+      const [, pass = ''] = Buffer.from(auth.slice(6), 'base64').toString().split(':');
+      ok = pass === ACCESS_SECRET;
+    }
+    if (!ok) {
+      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Resonance demo"', 'Content-Type': 'text/plain' });
+      return res.end('Authorization required. Ask for the access key.');
+    }
+  }
+
   if (url.pathname.startsWith('/api/')) {
     let raw = '';
     req.on('data', (c) => {

@@ -1,15 +1,17 @@
+// NOTE: rcos-mvp is a scaffold, NOT the deployed system. Fees are NEVER hardcoded here —
+// the source of truth is agent/college.json in the main app. These defer to the office.
 export const FAQ_RULES = [
   {
     pattern: /(fee|cost|price).*(mpc)/i,
-    response: "The fee for MPC is ₹1,00,000 per year. This includes tuition, lab fees, and library access."
+    response: "Our admissions office will share the exact MPC fee and scholarship options on WhatsApp today — the amount depends on your ResoNET result."
   },
   {
     pattern: /(fee|cost|price).*(bipc)/i,
-    response: "The fee for BiPC is ₹1,10,000 per year, which includes all laboratory materials."
+    response: "Our admissions office will share the exact BiPC fee and scholarship options on WhatsApp today — the amount depends on your ResoNET result."
   },
   {
     pattern: /(scholarship|discount|concession)/i,
-    response: "We offer several scholarships:\n      1. Merit Scholarship: 30% tuition waiver for students scoring above 85%\n      2. Need-based Scholarship: Up to 50% waiver based on family income\n      3. Sports Scholarship: 25% waiver for national-level athletes\n      4. Resonance Excellency Test (RET): Up to 100% scholarship"
+    response: "Scholarships are decided by the ResoNET test — up to 100% tuition waiver based on your score. The office will confirm your exact slab after the test."
   },
   {
     pattern: /where.*(branch|location|campus)|kukatpally|attapur|madhapur/i,

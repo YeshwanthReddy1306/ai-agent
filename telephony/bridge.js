@@ -31,10 +31,14 @@ try {
   process.exit(1);
 }
 
-const { sttTranscribe, llmChat, ttsSpeak } = require('../lib/sarvam');
+const { sttTranscribe, ttsSpeak } = require('../lib/sarvam');
+const { brainChat } = require('../lib/brain');
 const { parseTag, applyRegister, ttsPhonetics, nextPersonaLang, formatReminder } = require('../lib/textpost');
 const { spokenNumbers } = require('../lib/numbers');
-const { buildSystemPrompt, greetingFor } = require('../agent/persona');
+const { buildSystemPrompt, greetingFor, college } = require('../agent/persona');
+const { summarize } = require('../lib/callsummary');
+const crm = require('../lib/crm');
+const scheduler = require('../lib/scheduler');
 const leads = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'leads.json'), 'utf8'));
 
 const PORT = Number(process.env.TELEPHONY_PORT) || 3200;
@@ -182,7 +186,8 @@ class CallSession {
       }
 
       // history window + language-aware reminder — identical to the web server
-      const { text: raw } = await llmChat([this.messages[0], ...this.messages.slice(1).slice(-12), formatReminder(this.personaLang)]);
+      // Same language-routed brain as the web server: English -> Groq, te/hi -> Sarvam.
+      const { text: raw } = await brainChat([this.messages[0], ...this.messages.slice(1).slice(-12), formatReminder(this.personaLang)], this.personaLang);
       this.messages.push({ role: 'assistant', content: raw });
       // shared parsing/register pass; each reply voiced in its own language model
       const parsed = parseTag(raw, this.lastLang);
@@ -193,6 +198,21 @@ class CallSession {
       await this.speak(text, parsed.lang, parsed.emotion);
     } finally {
       this.busy = false;
+    }
+  }
+
+  // Called when Twilio ends the stream — same outcome pipeline as the web server (audit H1):
+  // summarise -> CRM lead -> schedule follow-ups. Runs once.
+  async finalize() {
+    if (this.finalized) return;
+    this.finalized = true;
+    try {
+      const summary = await summarize(this.messages, college.agentName);
+      crm.upsertLead(this.lead, summary);
+      scheduler.fromCall(this.lead, summary);
+      console.log(`[bridge] call finalized for ${this.lead.parentName} · interest ${summary.interest}` + (summary.appointment.booked ? ` · visit ${summary.appointment.when}` : ''));
+    } catch (e) {
+      console.error('[bridge] finalize failed:', e.message);
     }
   }
 }
@@ -245,7 +265,7 @@ wss.on('connection', (ws, req) => {
     try { msg = JSON.parse(data); } catch { return; }
     if (msg.event === 'start') session.onStart(msg).catch((e) => console.error(e.message));
     else if (msg.event === 'media') session.onMedia(msg.media.payload);
-    else if (msg.event === 'stop') console.log('call ended by Twilio');
+    else if (msg.event === 'stop') { console.log('call ended by Twilio'); session.finalize(); }
   });
 });
 
