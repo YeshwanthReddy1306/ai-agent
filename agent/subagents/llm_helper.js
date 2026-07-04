@@ -1,4 +1,4 @@
-const { llmChat } = require('../../lib/sarvam');
+const { brainChat } = require('../../lib/brain');
 const { formatReminder } = require('../../lib/textpost');
 
 // Cap what each LLM call carries — system prompt + the last N exchanges.
@@ -17,8 +17,9 @@ async function generateAgentResponse(state, prefix = "") {
     });
   }
 
-  const { text, usage } = await llmChat(messages);
-  
+  // Route by language: English -> Groq (if GROQ_API_KEY set), Telugu/Hindi -> Sarvam always.
+  const { text, usage } = await brainChat(messages, state.personaLang);
+
   return { text, usage };
 }
 

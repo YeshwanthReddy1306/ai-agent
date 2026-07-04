@@ -20,6 +20,8 @@ const { sttTranscribe, llmChat, ttsSpeak, ackClips, EMOTION_STYLE, TTS_LANGS, se
 const { parseTag, applyRegister, ttsPhonetics, nextPersonaLang, formatReminder } = require('./lib/textpost');
 const { spokenNumbers } = require('./lib/numbers');
 const crm = require('./lib/crm');
+const scheduler = require('./lib/scheduler');
+const { brainStatus } = require('./lib/brain');
 const { buildSystemPrompt, greetingFor, college, LANG_CODE } = require('./agent/persona');
 const { graph } = require('./agent/graph');
 const { routeFastPath } = require('./lib/fast-path/faq-rules');
@@ -52,6 +54,9 @@ setInterval(() => {
   const now = Date.now();
   for (const [id, c] of calls) if (now - c.touched > 30 * 60000) calls.delete(id);
 }, 5 * 60000).unref();
+
+// Follow-up scheduler tick — marks due reminders/follow-ups every minute (sends once a channel is wired).
+setInterval(() => { try { scheduler.tick(); } catch (e) { console.error('scheduler tick:', e.message); } }, 60000).unref();
 
 // Parse the hidden tag and apply the urban-register pass (shared with the telephony
 // bridge via lib/textpost.js). Each reply is voiced in ITS OWN language model — the
@@ -130,7 +135,7 @@ async function handleApi(req, res, url, body) {
       model: process.env.LLM_MODEL || 'sarvam-30b', voice: process.env.AGENT_VOICE || 'simran',
       maxCallMinutes: MAX_CALL_MS / 60000, sessionUsage,
       latency: { p50: percentile(0.5), p95: percentile(0.95), turns: turnLatencies.length },
-      services: serviceHealth,
+      services: serviceHealth, brain: brainStatus(),
     });
   }
   if (req.method === 'GET' && url.pathname === '/api/leads') return json(res, 200, leads);
@@ -147,6 +152,10 @@ async function handleApi(req, res, url, body) {
 
   if (req.method === 'GET' && url.pathname === '/api/crm') {
     return json(res, 200, { stats: crm.stats(), leads: crm.listLeads() });
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/followups') {
+    return json(res, 200, scheduler.listFollowups());
   }
 
   if (req.method === 'GET' && url.pathname === '/api/acks') {
@@ -370,6 +379,7 @@ async function handleApi(req, res, url, body) {
     };
     fs.appendFileSync(CALL_LOG, JSON.stringify(record) + '\n');
     try { crm.upsertLead(call.lead, summary); } catch (e) { console.error('CRM upsert failed:', e.message); }
+    try { scheduler.fromCall(call.lead, summary); } catch (e) { console.error('scheduler failed:', e.message); }
     sessionUsage.calls++;
     console.log(`call done (${durationSec}s) · session totals: ${sessionUsage.calls} calls, ${sessionUsage.sttSeconds}s STT, ${sessionUsage.llmTokens} tokens, ${sessionUsage.ttsChars} TTS chars`);
     return json(res, 200, record);
