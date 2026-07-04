@@ -4,6 +4,7 @@ data/calls.jsonl
 data/cache/
 data/transcripts/
 data/edge-cases.jsonl
+data/crm.json
 scratch/
 *.bak
 rcos-mvp/node_modules/

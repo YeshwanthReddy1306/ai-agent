@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Resonance — Admissions CRM</title>
+<style>
+  :root { --bg:#0b1020; --card:#141b33; --line:#242c4a; --txt:#e8ecfb; --mut:#8b93b7;
+          --hot:#ff5a5a; --warm:#ffb020; --cold:#4aa3ff; --ok:#3ddc84; }
+  * { box-sizing:border-box; } body { margin:0; background:var(--bg); color:var(--txt);
+      font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif; padding:28px; }
+  h1 { margin:0 0 4px; font-size:22px; } .sub { color:var(--mut); margin-bottom:22px; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:14px; margin-bottom:24px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
+  .card .n { font-size:30px; font-weight:800; } .card .l { color:var(--mut); font-size:13px; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line);
+          border-radius:14px; overflow:hidden; }
+  th,td { text-align:left; padding:11px 14px; border-bottom:1px solid var(--line); font-size:14px; vertical-align:top; }
+  th { color:var(--mut); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  tr:last-child td { border-bottom:none; }
+  .pill { font-size:11px; font-weight:700; padding:3px 9px; border-radius:99px; text-transform:uppercase; }
+  .hot{background:rgba(255,90,90,.16);color:var(--hot)} .warm{background:rgba(255,176,32,.16);color:var(--warm)}
+  .cold{background:rgba(74,163,255,.16);color:var(--cold)} .unknown{background:#2a3150;color:var(--mut)}
+  .book { color:var(--ok); font-weight:600; } .muted { color:var(--mut); }
+  .empty { color:var(--mut); padding:26px; text-align:center; }
+  a.refresh { color:var(--cold); text-decoration:none; font-size:13px; float:right; }
+</style>
+</head>
+<body>
+  <a class="refresh" href="javascript:load()">↻ refresh</a>
+  <h1>Admissions CRM</h1>
+  <div class="sub" id="sub">Loading…</div>
+  <div class="cards" id="cards"></div>
+  <table><thead><tr>
+    <th>Parent / Student</th><th>Stream</th><th>Interest</th><th>Campus visit</th><th>Calls</th><th>Next action</th>
+  </tr></thead><tbody id="rows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody></table>
+
+<script>
+async function load() {
+  const d = await fetch('/api/crm').then(r => r.json()).catch(() => null);
+  if (!d) { document.getElementById('sub').textContent = 'Server unreachable.'; return; }
+  const s = d.stats;
+  document.getElementById('sub').textContent = `${s.totalLeads} leads · ${s.totalCalls} calls · updated ${new Date().toLocaleTimeString()}`;
+  document.getElementById('cards').innerHTML = [
+    ['Leads', s.totalLeads], ['Hot', s.hot], ['Warm', s.warm], ['Cold', s.cold], ['Visits booked', s.visitsBooked],
+  ].map(([l,n]) => `<div class="card"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+  const rows = d.leads.map(l => `<tr>
+    <td><b>${l.parentName||'—'}</b><br><span class="muted">${l.studentName||''}${l.area?' · '+l.area:''}</span></td>
+    <td>${l.interestStream||'—'}</td>
+    <td><span class="pill ${l.interest||'unknown'}">${l.interest||'—'}</span></td>
+    <td>${l.appointment&&l.appointment.booked ? '<span class="book">✓ '+(l.appointment.when||'booked')+'</span>' : '<span class="muted">—</span>'}</td>
+    <td>${l.calls||0}</td>
+    <td class="muted">${l.nextAction||''}</td>
+  </tr>`).join('');
+  document.getElementById('rows').innerHTML = rows || '<tr><td colspan="6" class="empty">No leads yet — complete a call to see it here.</td></tr>';
+}
+load();
+</script>
+</body>
+</html>

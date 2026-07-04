@@ -19,6 +19,7 @@ if (fs.existsSync(envPath)) {
 const { sttTranscribe, llmChat, ttsSpeak, ackClips, EMOTION_STYLE, TTS_LANGS, serviceHealth } = require('./lib/sarvam');
 const { parseTag, applyRegister, ttsPhonetics, nextPersonaLang, formatReminder } = require('./lib/textpost');
 const { spokenNumbers } = require('./lib/numbers');
+const crm = require('./lib/crm');
 const { buildSystemPrompt, greetingFor, college, LANG_CODE } = require('./agent/persona');
 const { graph } = require('./agent/graph');
 const { routeFastPath } = require('./lib/fast-path/faq-rules');
@@ -142,6 +143,10 @@ async function handleApi(req, res, url, body) {
         .filter(Boolean).slice(-15).reverse();
     }
     return json(res, 200, rows);
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/crm') {
+    return json(res, 200, { stats: crm.stats(), leads: crm.listLeads() });
   }
 
   if (req.method === 'GET' && url.pathname === '/api/acks') {
@@ -305,7 +310,7 @@ async function handleApi(req, res, url, body) {
             {
               role: 'user',
               content:
-                `SYSTEM TASK (the parent did not say this — do not answer as ${college.agentName}): the call has ended. Report on it in ONLY minified JSON, in English, no markdown. "interest" must be exactly one word: hot OR warm OR cold. "objections" lists real objections the parent raised, or [] if none. "unansweredQuestions" lists questions the parent asked that the counselor could NOT answer from her facts (had to defer to the office), or [] if none. A correctly formatted example for a DIFFERENT call: {"interest":"warm","summary":"Parent liked the small batches but wants to compare fees with one other college. Mood was friendly and unhurried.","nextAction":"Send fee comparison on WhatsApp and call back Thursday evening.","objections":["fees higher than expected"],"unansweredQuestions":["exact bus fee from Miyapur"]}`,
+                `SYSTEM TASK (the parent did not say this — do not answer as ${college.agentName}): the call has ended. Report on it in ONLY minified JSON, in English, no markdown. "interest" must be exactly one word: hot OR warm OR cold. "objections" lists real objections the parent raised, or [] if none. "unansweredQuestions" lists questions the parent asked that the counselor could NOT answer from her facts, or [] if none. "appointment" reports whether the parent AGREED to a campus visit: {"booked":true,"when":"Saturday morning"} if they clearly agreed to a specific time, else {"booked":false,"when":null}. A correctly formatted example for a DIFFERENT call: {"interest":"warm","summary":"Parent liked the small batches but wants to compare fees with one other college. Mood was friendly and unhurried.","nextAction":"Send fee comparison on WhatsApp and call back Thursday evening.","objections":["fees higher than expected"],"unansweredQuestions":["exact bus fee from Miyapur"],"appointment":{"booked":false,"when":null}}`,
             },
           ],
           { temperature: 0.2, maxTokens: 220 }
@@ -321,6 +326,9 @@ async function handleApi(req, res, url, body) {
           unansweredQuestions: (Array.isArray(parsed.unansweredQuestions) ? parsed.unansweredQuestions : []).filter(
             (q) => typeof q === 'string' && q.length > 3 && !/^\.+$/.test(q.trim())
           ),
+          appointment: parsed.appointment && parsed.appointment.booked === true
+            ? { booked: true, when: typeof parsed.appointment.when === 'string' ? parsed.appointment.when : 'time to confirm' }
+            : { booked: false, when: null },
         };
         // Edge-case capture (RCOS F2, honest version): every question the agent could not
         // answer becomes a review item. A human answers it, adds it to college.json faq,
@@ -361,6 +369,7 @@ async function handleApi(req, res, url, body) {
       transcript: path.relative(__dirname, transcriptFile), ...summary,
     };
     fs.appendFileSync(CALL_LOG, JSON.stringify(record) + '\n');
+    try { crm.upsertLead(call.lead, summary); } catch (e) { console.error('CRM upsert failed:', e.message); }
     sessionUsage.calls++;
     console.log(`call done (${durationSec}s) · session totals: ${sessionUsage.calls} calls, ${sessionUsage.sttSeconds}s STT, ${sessionUsage.llmTokens} tokens, ${sessionUsage.ttsChars} TTS chars`);
     return json(res, 200, record);
