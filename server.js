@@ -18,7 +18,11 @@ if (fs.existsSync(envPath)) {
 
 const { sttTranscribe, llmChat, ttsSpeak, ackClips, EMOTION_STYLE, TTS_LANGS, serviceHealth } = require('./lib/sarvam');
 const { parseTag, applyRegister, ttsPhonetics, nextPersonaLang, formatReminder } = require('./lib/textpost');
+const { spokenNumbers } = require('./lib/numbers');
 const { buildSystemPrompt, greetingFor, college, LANG_CODE } = require('./agent/persona');
+const { graph } = require('./agent/graph');
+const { routeFastPath } = require('./lib/fast-path/faq-rules');
+const { logMetric } = require('./lib/observability/metrics');
 
 const API_KEY = process.env.SARVAM_API_KEY || '';
 const PORT = Number(process.env.PORT) || 3100;
@@ -106,7 +110,9 @@ const windowed = (messages) => [messages[0], ...messages.slice(1).slice(-HISTORY
 // TTS that never kills the turn: on failure the text still reaches the client (premortem #6).
 async function speakSafe(call, text, lang, emotion) {
   try {
-    const ttsText = ttsPhonetics(text, lang);
+    // Deterministic delivery pass: acronym phonetics, then numbers → natural spoken words
+    // (so no digit is ever read grammatically, regardless of what the LLM emitted).
+    const ttsText = spokenNumbers(ttsPhonetics(text, lang), lang);
     addUsage(call, { ttsChars: ttsText.length });
     return await ttsSpeak(ttsText, lang, emotion);
   } catch (e) {
@@ -201,11 +207,66 @@ async function handleApi(req, res, url, body) {
       console.log(`[Turn] Persona switched to ${call.personaLang}`);
     }
 
-    const { text: raw, usage } = await llmChat([...windowed(call.messages), formatReminder(call.personaLang)]);
+    const initialState = {
+      session_id: body.callId,
+      messages: call.messages,
+      current_stage: call.current_stage || 'greeting',
+      trust_level: call.trust_level || 0.5,
+      intent: call.intent || 'unknown',
+      personaLang: call.personaLang
+    };
+
+    // Fast Path — OFF by default on the voice path (2026-07-03). It returned hardcoded
+    // ENGLISH bullet-list FAQ answers with invented fees, bypassing the locked persona,
+    // the LLM, and language mirroring — the "lost Telugu voice" regression. It also
+    // violated AGENT-SPEC (nothing on the voice path may bypass the persona). Enable ONLY
+    // for English text-chat by explicitly setting ENABLE_FAST_PATH=true.
+    const fastPathEnabled = process.env.ENABLE_FAST_PATH === 'true';
+    let fastPathResult = fastPathEnabled ? routeFastPath(userText) : null;
+
+    if (fastPathResult && fastPathResult.matched) {
+      console.log(`[Turn] Fast Path matched. Response: ${fastPathResult.response}`);
+      
+      const raw = fastPathResult.response;
+      call.messages.push({ role: 'assistant', content: raw });
+      
+      const tLlm = Date.now();
+      const reply = parseReply(raw, call.lastLang, call.lead);
+      call.lastLang = reply.lang; 
+      
+      const audios = await speakSafe(call, reply.text, reply.lang, reply.emotion);
+      const tEnd = Date.now();
+      const timings = { stt: tStt - t0, llm: 0, tts: tEnd - tLlm, total: tEnd - t0 };
+      recordLatency(timings.total);
+      
+      logMetric({
+        session_id: body.callId,
+        path: 'fast',
+        latency_ms: timings.total,
+        intent: 'faq',
+        escalated: false,
+        success: true
+      });
+      
+      return json(res, 200, { userText, userLang: stt.language_code, reply, audios, wrapUp, timings });
+    }
+
+    const finalState = await graph.invoke(initialState, { recursionLimit: 5 });
+    
+    // Update call state tracking
+    call.current_stage = finalState.current_stage;
+    call.trust_level = finalState.trust_level;
+    call.intent = finalState.intent;
+    
+    // finalState.messages contains the appended assistant response from the subagent
+    const assistantMessage = finalState.messages[finalState.messages.length - 1];
+    const raw = assistantMessage.content;
+    const usage = finalState.turn_usage || { total_tokens: 0 };
+    
     const tLlm = Date.now();
-    console.log(`[Turn] Raw LLM response: "${raw}"`);
+    console.log(`[Turn] Graph/LLM response: "${raw}" | Intent: ${call.intent} | Stage: ${call.current_stage}`);
     addUsage(call, { tokens: usage.total_tokens || 0 });
-    call.messages.push({ role: 'assistant', content: raw });
+    call.messages = finalState.messages; // sync the full message history
 
     const reply = parseReply(raw, call.lastLang, call.lead);
     console.log('[Turn] Parsed reply:', reply);
@@ -215,6 +276,16 @@ async function handleApi(req, res, url, body) {
     const timings = { stt: tStt - t0, llm: tLlm - tStt, tts: tEnd - tLlm, total: tEnd - t0 };
     recordLatency(timings.total);
     console.log(`[Turn] latency: stt ${timings.stt}ms · llm ${timings.llm}ms · tts ${timings.tts}ms · total ${timings.total}ms (p95 ${percentile(0.95)}ms)`);
+    
+    logMetric({
+      session_id: body.callId,
+      path: 'full',
+      latency_ms: timings.total,
+      intent: call.intent,
+      escalated: call.current_stage === 'escalated',
+      success: true
+    });
+    
     return json(res, 200, { userText, userLang: stt.language_code, reply, audios, wrapUp, timings });
   }
 

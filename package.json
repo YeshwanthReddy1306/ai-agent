@@ -15,5 +15,13 @@
     "node": ">=18"
   },
   "license": "UNLICENSED",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "@ai-sdk/groq": "^4.0.5",
+    "@langchain/core": "^1.2.1",
+    "@langchain/langgraph": "^1.4.7",
+    "ai": "^7.0.14",
+    "dotenv": "^17.4.2",
+    "pg": "^8.22.0"
+  }
 }

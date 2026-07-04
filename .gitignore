@@ -6,3 +6,7 @@ data/transcripts/
 data/edge-cases.jsonl
 scratch/
 *.bak
+rcos-mvp/node_modules/
+rcos-mvp/.next/
+rcos-mvp/.env
+rcos-mvp/.env.local

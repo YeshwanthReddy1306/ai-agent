@@ -33,6 +33,7 @@ try {
 
 const { sttTranscribe, llmChat, ttsSpeak } = require('../lib/sarvam');
 const { parseTag, applyRegister, ttsPhonetics, nextPersonaLang, formatReminder } = require('../lib/textpost');
+const { spokenNumbers } = require('../lib/numbers');
 const { buildSystemPrompt, greetingFor } = require('../agent/persona');
 const leads = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'leads.json'), 'utf8'));
 
@@ -113,7 +114,8 @@ class CallSession {
   }
 
   async speak(text, lang, emotion) {
-    const audios = await ttsSpeak(ttsPhonetics(text, lang), lang, emotion, { sampleRate: 8000, codec: 'mulaw' });
+    const ttsText = spokenNumbers(ttsPhonetics(text, lang), lang); // numbers → natural speech
+    const audios = await ttsSpeak(ttsText, lang, emotion, { sampleRate: 8000, codec: 'mulaw' });
     for (const a of audios) this.sendAudio(toRawMulaw(a));
   }
 
