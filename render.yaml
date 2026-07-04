@@ -1,0 +1,25 @@
+# Render Blueprint — deploys the WORKING voice agent (server.js) as a Node web service.
+# No Docker, no Dograh, no Next.js. This is the fastest path to a live HTTPS demo URL.
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: sneha-voice-agent
+    runtime: node
+    plan: starter            # $7/mo always-on; use "free" to trial (sleeps when idle)
+    region: singapore        # closest Render region to Hyderabad
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: SARVAM_API_KEY  # set in the Render dashboard (Secret) — never commit it
+        sync: false
+      - key: AGENT_VOICE
+        value: simran
+      - key: LLM_MODEL
+        value: sarvam-105b
+      - key: LLM_TEMPERATURE
+        value: "0.45"
+      - key: NODE_VERSION
+        value: "20"
+      # ENABLE_FAST_PATH intentionally unset -> persona answers every voice turn (Telugu safe)
