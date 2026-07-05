@@ -1,7 +1,7 @@
 {
   "name": "phoenix-voice-agent",
   "version": "1.0.0",
-  "description": "Human-sounding AI voice agent for junior college admissions — Sarvam AI (Telugu/Hindi/English), zero dependencies",
+  "description": "Human-sounding AI voice agent for junior college admissions — Sarvam AI (Telugu/Hindi/English). One dependency (ws, telephony only).",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -17,11 +17,6 @@
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
-    "@ai-sdk/groq": "^4.0.5",
-    "@langchain/core": "^1.2.1",
-    "@langchain/langgraph": "^1.4.7",
-    "ai": "^7.0.14",
-    "dotenv": "^17.4.2",
-    "pg": "^8.22.0"
+    "ws": "^8.21.0"
   }
 }

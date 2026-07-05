@@ -4,14 +4,15 @@ voice agents (Telugu, Hindi, English) are constructed at runtime. Any future pla
 Pipecat, LiveKit, LangGraph, RCOS, anything — MUST reproduce this contract exactly.
 If a migration cannot check every box in §8, the migration is rejected.
 
-*Spec version 1.0 · 2026-07-03 · personas locked at baseline `agent/personas/locked/manifest.json`*
+*Spec version 1.1 · 2026-07-05 · personas locked at baseline `agent/personas/locked/manifest.json`*
+*v1.1 changes: veteran-cadence TTS paces (all emotions ~0.78-0.95); phone language-switch policy (first switch instant, hysteresis 2 after); STT hint MUST stay `'unknown'` (a language hint DISABLES auto-detect — field-proven mirroring breakage); persona additions (cold-call OPENING/leading, moves-not-lines, global anti-repeat, noise-ignore, language-override-of-own-history, no-laugh-as-text, firm statement endings, callback, SPIN need-building); DNC list; phone JSON transcripts; format reminder gains language-override + no-laugh clauses; RCOS graph/tools/fast-path scaffold REMOVED from the voice path (2026-07-05).*
 
 ---
 
 ## 1. The Non-Negotiables (violating any of these destroys the agent)
 
 1. **LLM: `sarvam-105b`** for Telugu & Hindi — ALWAYS (Sarvam chat completions, `reasoning_effort: null`, temperature **0.45** — low temp is REQUIRED for verbatim-script adherence; 0.75 was field-proven (2026-07-03) to paraphrase the playbook and collapse emotions to all-warm — max_tokens 220). **English turns MAY route to Groq (Llama-3) via `lib/brain.js` when `GROQ_API_KEY` is set, for cost/latency; Telugu/Hindi must NEVER touch Groq.** With no Groq key, everything is Sarvam. Routing is by `personaLang` in the subagent — Groq only sees `en-IN`. Indian-language-native generation is the product. Llama/GPT/Claude/Gemini may NOT serve the voice path — they regress Telugu to "bookish counselor" (field-proven failure). Utility tasks off the voice path (summaries, classification) may use other models only if output is English JSON.
-2. **STT: `saaras:v3`** (Sarvam, `language_code: unknown` for auto-detect). Language detection drives mirroring.
+2. **STT: `saaras:v3`** (Sarvam, `language_code: unknown` for auto-detect). Language detection drives mirroring. **The hint MUST stay `'unknown'` on every turn** — passing a specific language is a HARD instruction that turns auto-detect OFF (not a soft prior), which silently kills live mirroring (field-proven 2026-07-05).
 3. **TTS: `bulbul:v3`, speaker `simran`** — 48 kHz mp3 for web, 8 kHz mulaw for telephony. Speaker chosen by a 26-voice human audition; changing it requires a new audition.
 4. **Persona files are LOCKED** (`.agents/AGENTS.md`): `agent/personas/{te,hi,en}.js`, SHA-256 baseline in `agent/personas/locked/`. `npm run preflight` fails on one byte of drift; `npm run restore-personas` recovers. Re-baseline only on the user's explicit approval.
 5. **Concrete over abstract**: persona instructions are verbatim scripts, fixed lexicons, and step-numbered ladders — never abstract rules ("probe deeper"). Abstract rules make the model hallucinate back to generic behavior (field-proven 2026-07-03).
@@ -53,8 +54,10 @@ messages = [
   `"Hello, good evening! This is {agentName} calling from the admissions office at {college}. Am I speaking with {firstName}?"`
   voiced `en-IN`, emotion `warm`. Stored in history as the first assistant message.
 - **Language mirroring**: `personaLang` starts `en-IN`; after each turn, STT's detected
-  language feeds `nextPersonaLang(state, detected, LANG_SWITCH_TURNS=1)` — instant switch
-  by default; set `LANG_SWITCH_TURNS=2` for hysteresis if code-mixed speech ping-pongs.
+  language feeds `nextPersonaLang(state, detected, threshold)`. WEB: threshold 1 (instant,
+  clean 16 kHz audio). PHONE (8 kHz, mishear-prone): the FIRST switch is instant so a
+  Telugu/Hindi parent is answered in their language from turn one; every LATER switch
+  needs 2 consecutive turns, so a single mishear can never ping-pong the call.
   On switch, only `messages[0]` is rebuilt in the new language.
 - **Call cap**: at `MAX_CALL_MINUTES` (6), inject once:
   `"SYSTEM NOTE (the parent did not say this): the call has reached its time limit. Follow the WRAP-UP PROTOCOL now — one warm closing turn."`
@@ -83,7 +86,9 @@ Appended to every LLM call; never stored in history.
 - Post-processing pipeline (exact order): `parseTag` → `applyRegister` (urban Hyderabad
   register, gender-correct child words) → `ttsPhonetics` (BiPC→బైపీసీ etc.) → TTS.
 - Emotion → delivery map (`lib/sarvam.js EMOTION_STYLE`): each emotion sets bulbul
-  `pace` + `temperature` (e.g. gentle 0.86/0.45, excited 1.08/0.95, serious 0.95/0.35).
+  `pace` + `temperature`. v1.1: paces shifted to veteran cadence ~0.78-0.95 (research:
+  top sales performers speak 110-125 wpm; e.g. gentle 0.78/0.45, warm 0.88/0.6,
+  serious 0.83/0.35, urgent 0.95/0.8 — relative ordering preserved).
 
 ## 7. Post-Call Pipeline (async — off the voice path)
 

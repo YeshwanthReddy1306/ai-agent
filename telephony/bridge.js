@@ -39,6 +39,7 @@ const { buildSystemPrompt, greetingFor, college } = require('../agent/persona');
 const { summarize } = require('../lib/callsummary');
 const crm = require('../lib/crm');
 const scheduler = require('../lib/scheduler');
+const dnc = require('../lib/dnc');
 const leads = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'leads.json'), 'utf8'));
 
 const PORT = Number(process.env.TELEPHONY_PORT) || 3200;
@@ -88,6 +89,7 @@ class CallSession {
     this.lead = lead;
     this.streamSid = null;
     this.personaLang = 'en-IN'; // English-first opening; mirrors the caller from turn one
+    this.langCommitted = false; // first switch is instant; hysteresis (2 turns) only after
     this.streak = { lang: null, count: 0 };
     this.messages = [{ role: 'system', content: buildSystemPrompt(lead, this.personaLang) }];
     this.lastLang = 'en-IN';
@@ -159,7 +161,9 @@ class CallSession {
     if (this.speaking) this.pcm.push(pcm);
 
     const total = this.pcm.reduce((n, f) => n + f.length, 0) / 8; // ms
-    if (this.speaking && !this.busy && (this.silentMs > 800 || total > 15000)) {
+    // Phone audio is 8 kHz and callers pause mid-sentence; 800 ms cut utterances into
+    // fragments ("Capstone") that STT then misheard. 1300 ms captures whole sentences.
+    if (this.speaking && !this.busy && (this.silentMs > (Number(process.env.PHONE_ENDPOINT_MS) || 1300) || total > 15000)) {
       const frames = this.pcm;
       this.pcm = [];
       this.speaking = false;
@@ -173,14 +177,27 @@ class CallSession {
       const merged = new Int16Array(frames.reduce((n, f) => n + f.length, 0));
       let off = 0;
       for (const f of frames) { merged.set(f, off); off += f.length; }
+      // MUST stay 'unknown': Sarvam treats any other value as a hard instruction to
+      // decode in that language (auto-detect OFF), not a soft hint — passing the lead's
+      // language here silently prevented the caller from ever being detected in a
+      // different language, breaking live mirroring. Always auto-detect on the phone too.
       const stt = await sttTranscribe(pcmToWav(merged), 'unknown');
       const userText = (stt.transcript || '').trim();
       if (!userText) return;
       console.log(`[caller] ${userText}`);
       this.messages.push({ role: 'user', content: userText });
-      // Mirror the caller's language — same contract as the web server:
-      // LANG_SWITCH_TURNS=1 (default) switches instantly; 2 restores hysteresis.
-      if (nextPersonaLang(this, stt.language_code || '', Number(process.env.LANG_SWITCH_TURNS) || 1)) {
+      // DNC: if the parent asks not to be called again, honor it — suppress the number so
+      // no future dial reaches it. The persona still replies politely on this turn.
+      if (dnc.isDncRequest(userText) && dnc.add(this.lead.phone, 'said do-not-call on call')) {
+        console.log(`[bridge] DNC: ${this.lead.phone} added — will not be dialled again`);
+      }
+      // Mirror the caller's language. The FIRST switch is instant (threshold 1) so a
+      // Telugu/Hindi parent is answered in their language from the very first substantive
+      // turn; AFTER that we apply hysteresis (2 consecutive turns) so a single 8 kHz
+      // mishear can never ping-pong the language mid-call. Web keeps its own default.
+      const threshold = Number(process.env.LANG_SWITCH_TURNS) || (this.langCommitted ? 2 : 1);
+      if (nextPersonaLang(this, stt.language_code || '', threshold)) {
+        this.langCommitted = true;
         this.messages[0].content = buildSystemPrompt(this.lead, this.personaLang);
         console.log(`[bridge] persona switched to ${this.personaLang}`);
       }
@@ -210,6 +227,19 @@ class CallSession {
       const summary = await summarize(this.messages, college.agentName);
       crm.upsertLead(this.lead, summary);
       scheduler.fromCall(this.lead, summary);
+      // Call Recorder / Compliance Logger: persist the full phone transcript (the web
+      // server already saves web-call transcripts; the phone path previously did not).
+      try {
+        const dir = path.join(__dirname, '..', 'data', 'transcripts');
+        fs.mkdirSync(dir, { recursive: true });
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const file = path.join(dir, `${this.lead.id}-${stamp}.json`);
+        fs.writeFileSync(file, JSON.stringify({
+          channel: 'phone', endedAt: new Date().toISOString(),
+          lead: this.lead, agent: college.agentName, personaLang: this.personaLang,
+          summary, messages: this.messages,
+        }, null, 2));
+      } catch (e) { console.error('[bridge] transcript save failed:', e.message); }
       console.log(`[bridge] call finalized for ${this.lead.parentName} · interest ${summary.interest}` + (summary.appointment.booked ? ` · visit ${summary.appointment.when}` : ''));
     } catch (e) {
       console.error('[bridge] finalize failed:', e.message);
@@ -225,9 +255,18 @@ const server = http.createServer((req, res) => {
     req.on('end', async () => {
       try {
         const body = JSON.parse(raw || '{}');
+        // Shared-secret gate: /dial spends YOUR Twilio money and rings REAL phones — it must
+        // never be open on a public tunnel. Same ACCESS_SECRET as the web server; pass it as
+        // {"key": "..."} in the dial body. No secret configured = localhost-dev only mindset.
+        const SECRET = process.env.ACCESS_SECRET || '';
+        if (SECRET && body.key !== SECRET) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'Unauthorized — include the access key' }));
+        }
         const lead = leads.find((l) => l.id === body.leadId) || leads[0];
         if (!SID || !TOKEN || !FROM || !PUBLIC_URL) throw new Error('Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, PUBLIC_URL in .env');
         if (!body.to) throw new Error('Provide "to": "+91..." (E.164)');
+        if (dnc.has(body.to)) throw new Error(`${body.to} is on the Do-Not-Call list — refusing to dial`);
         const wss = PUBLIC_URL.replace(/^http/, 'ws') + '/media?leadId=' + encodeURIComponent(lead.id);
         const twiml = `<Response><Connect><Stream url="${wss}"/></Connect></Response>`;
         const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${SID}/Calls.json`, {
