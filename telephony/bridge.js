@@ -31,7 +31,7 @@ try {
   process.exit(1);
 }
 
-const { sttTranscribe, ttsSpeak } = require('../lib/sarvam');
+const { sttTranscribe, ttsSpeak, ttsCachedLine } = require('../lib/sarvam');
 const { brainChat } = require('../lib/brain');
 const { parseTag, applyRegister, ttsPhonetics, nextPersonaLang, formatReminder } = require('../lib/textpost');
 const { spokenNumbers } = require('../lib/numbers');
@@ -130,7 +130,11 @@ class CallSession {
     const greeting = greetingFor(this.lead);
     this.lastLang = greeting.lang;
     this.messages.push({ role: 'assistant', content: greeting.text });
-    await this.speak(greeting.text, greeting.lang, greeting.emotion);
+    // Deterministic greeting — cached audio (free win #3): the caller hears Sneha
+    // ~1-2s sooner on every call after the first for this lead.
+    const ttsText = spokenNumbers(ttsPhonetics(greeting.text, greeting.lang), greeting.lang);
+    const { audios } = await ttsCachedLine(ttsText, greeting.lang, greeting.emotion, { sampleRate: 8000, codec: 'mulaw' });
+    for (const a of audios) this.sendAudio(toRawMulaw(a));
   }
 
   onMedia(payloadB64) {

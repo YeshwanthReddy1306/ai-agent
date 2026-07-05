@@ -16,7 +16,7 @@ if (fs.existsSync(envPath)) {
   }
 }
 
-const { sttTranscribe, ttsSpeak, ackClips, serviceHealth } = require('./lib/sarvam');
+const { sttTranscribe, ttsSpeak, ttsCachedLine, ackClips, serviceHealth } = require('./lib/sarvam');
 const { parseTag, applyRegister, ttsPhonetics, nextPersonaLang } = require('./lib/textpost');
 const { spokenNumbers } = require('./lib/numbers');
 const crm = require('./lib/crm');
@@ -179,7 +179,14 @@ async function handleApi(req, res, url, body) {
       usage: { sttSeconds: 0, llmTokens: 0, ttsChars: 0 }, wrapUpSent: false,
     };
     calls.set(callId, call);
-    const audios = await speakSafe(call, greeting.text, greeting.lang, greeting.emotion);
+    // Greeting is deterministic — serve cached audio (free win #3); meter only real spend.
+    let audios = [];
+    try {
+      const ttsText = spokenNumbers(ttsPhonetics(greeting.text, greeting.lang), greeting.lang);
+      const r = await ttsCachedLine(ttsText, greeting.lang, greeting.emotion);
+      if (!r.cached) addUsage(call, { ttsChars: ttsText.length });
+      audios = r.audios;
+    } catch (e) { console.error('TTS degraded to text-only:', e.message); }
     return json(res, 200, { callId, lead, reply: greeting, audios });
   }
 
