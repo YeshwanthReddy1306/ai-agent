@@ -41,6 +41,7 @@ const crm = require('../lib/crm');
 const scheduler = require('../lib/scheduler');
 const dnc = require('../lib/dnc');
 const leadsStore = require('../lib/leads'); // shared, hot-reloading lead store (M2/M3)
+const { alertTeam } = require('../lib/alerts'); // M5: instant counselor ping on hot/booked/inbound-unknown
 
 const PORT = Number(process.env.TELEPHONY_PORT) || 3200;
 const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/$/, ''); // e.g. https://abc.ngrok.app
@@ -252,6 +253,7 @@ class CallSession {
       const summary = await summarize(this.messages, college.agentName);
       crm.upsertLead(this.lead, summary);
       scheduler.fromCall(this.lead, summary);
+      try { await alertTeam(this.lead, summary, 'phone'); } catch (e) { console.error('[alert] failed:', e.message); }
       // Call Recorder / Compliance Logger: persist the full phone transcript (the web
       // server already saves web-call transcripts; the phone path previously did not).
       try {

@@ -29,11 +29,11 @@ Point the Twilio (later Exotel) number's incoming-call webhook at the bridge; lo
 **M4. WhatsApp brochure auto-send (Dept 4) — blocked on keys [ASK]**
 After a call where interest ≥ warm or brochure requested: send the matching PDF link via WhatsApp Business API. Acceptance: end call → WhatsApp arrives < 1 min. (Until keys: SMS with link as fallback.)
 
-**M5. Handoff alerts (Dept 3 human-in-loop)**
-When a call ends hot, angry, or with an exceptional request: immediate SMS/WhatsApp to the counselor's number with the M1-style context brief. Acceptance: hot lead → human pinged within 1 min with usable context.
+**M5. Handoff alerts (Dept 3 human-in-loop) — ✅ BUILT 2026-07-06**
+Hot lead, booked visit, unknown inbound caller, or angry parent → instant SMS to `COUNSELOR_PHONE` with a context brief, the moment the call ends (web + phone). WhatsApp when keys arrive. Set `COUNSELOR_PHONE` in .env to activate.
 
-**M6. Document reminders (Dept 6, MVP slice)**
-Checklist per admitted/visiting lead (Aadhaar, TC, SSC memo); scheduler sends WhatsApp/SMS reminders until marked received on the admin page.
+**M6. Document reminders (Dept 6 — owner scope 2026-07-06: reminders ONLY, humans verify; NO OCR)**
+Checklist per admitted/visiting lead (Aadhaar, TC, SSC memo); scheduler sends WhatsApp/SMS reminders until a human marks received on the admin page. The OCR/upload pipeline is REMOVED from scope — parents bring documents, humans see and verify them.
 
 **M7. G1 latency pack (MVP-safe wins)**
 Done: keep-alive sockets, cached greeting. Next: (a) endpoint tuning from real call data (down from 1300ms where safe); (b) TRIAL streaming TTS in the current bridge via Sarvam's TTS WebSocket (first-chunk playback) — attempt only if it doesn't destabilize; (c) move server to an Indian region + Exotel (kills 150–300ms network + enables inbound properly). MVP acceptance: phone P95 ≤ 2.5s.
@@ -52,11 +52,12 @@ Preflight green, 3 rehearsal calls per language reviewed, Sarvam credits confirm
 **P1. LiveKit PoC (the decided fork-resolver):** smallest possible LiveKit agent with Sarvam STT/LLM/TTS — Python plugin vs thin Node adapter judged side-by-side; Sneha ported per AGENT-SPEC §8 checklist (byte-identical personas, same reminder, same tag pipeline). Go/no-go on listen test: "same Sneha."
 **P2. Streaming rebuild on the P1 winner:** streaming STT partials → LLM at stabilized text → TTS at first sentence; semantic turn detection; barge-in; P95 ≤1.2s measured per stage (G1 acceptance).
 **P3. Telephony at scale:** Exotel SIP into LiveKit; inbound+outbound; channel sizing; concurrent-call load test.
-**P4. Documents + OCR (Dept 6 full):** upload links → Sarvam doc digitization (₹0.5/page, official) → extracted fields → human verify → CRM prefill (Dept 7 full).
-**P5. Payments (Dept 9):** payment links + reminders + confirmations (gateway MDR passed through; official rates from provider [ASK at build time]).
+**P4. ~~Documents OCR~~ — REMOVED (owner scope 2026-07-06): documents stay reminder-only (M6); humans see and verify them. No OCR.**
+**P5. Payments (Dept 9) — post-contract:** the college provides their gateway (Razorpay link / QR scanner) at signing; we build: seat-confirmed → payment link on WhatsApp → polite reminders on schedule → paid → CRM update + receipt → installment schedule (2–3 installments per Resonance structure) tracked with pre-due-date reminders. Humans: disputes + concessions only.
 **P6. Multi-college tenancy:** Postgres, per-college facts DB + persona wiring + numbers; onboarding console (new college in a day).
 **P7. Analytics (Dept 11 full):** branch-wise, college-wise, response-time and conversion reporting.
-**P8. Post-admission comms (Dept 12).**
+**P8. Post-admission comms (Dept 12) — ELEVATED (owner 2026-07-06: "one of the main parts, make it work 100%").** Research findings (2026-07-06): the proven India pattern is ERP/webhook → WhatsApp Business API **utility templates at ₹0.115/message** ([Meta pricing](https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing)); WhatsApp fee reminders hit **98% open rates vs 75% SMS** and institutions report **40–50% better on-time fee collection** and **70–80% parent adoption in the first term** ([industry](https://www.classcare.in/features/whatsapp-integration-system/), [WABA education guide](https://waba.nxccontrols.in/blog/whatsapp-business-api-for-education-fee-reminders-admissions-student-support-2026)). Build (framework now, integrate at contract): notification engine with per-language templates (te/hi/en) + trigger types (absent, test result/SAPER, fee due, PTA, circular, event) + data feed (CSV/manual upload first, college-ERP webhook when they connect theirs) + delivery/read tracking. This is the retention product — the college pays year-round.
+**P10. Capture bots (Dept 1 full) — build-ready, integrate at contract:** website chat widget, WhatsApp number bot, social-DM auto-response, ad-platform auto-import — all feeding the same dedup + DNC + instant-call pipeline (the 5-minute golden window).
 **P9. Jio SIP trunk migration** at 10+ colleges (owner-locked strategy) — re-run cost crossover with real operator quotes [ASK].
 
 ## PART C — G3 "soul" workplan (continuous, spans MVP→final)

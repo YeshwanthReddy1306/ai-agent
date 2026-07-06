@@ -304,6 +304,7 @@ async function handleApi(req, res, url, body) {
     fs.appendFileSync(CALL_LOG, JSON.stringify(record) + '\n');
     try { crm.upsertLead(call.lead, summary); } catch (e) { console.error('CRM upsert failed:', e.message); }
     try { scheduler.fromCall(call.lead, summary); } catch (e) { console.error('scheduler failed:', e.message); }
+    try { await require('./lib/alerts').alertTeam(call.lead, summary, 'web'); } catch (e) { console.error('[alert] failed:', e.message); } // M5
     sessionUsage.calls++;
     console.log(`call done (${durationSec}s) · session totals: ${sessionUsage.calls} calls, ${sessionUsage.sttSeconds}s STT, ${sessionUsage.llmTokens} tokens, ${sessionUsage.ttsChars} TTS chars`);
     return json(res, 200, record);
