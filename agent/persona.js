@@ -4,6 +4,7 @@ const path = require('path');
 const enPrompt = require('./personas/en');
 const hiPrompt = require('./personas/hi');
 const tePrompt = require('./personas/te');
+const crm = require('../lib/crm');
 
 const college = JSON.parse(fs.readFileSync(path.join(__dirname, 'college.json'), 'utf8'));
 
@@ -62,21 +63,74 @@ function buildSystemPrompt(lead, langCode = 'te-IN') {
     .map(([k, v]) => `- ${k}: ${v}`)
     .join('\n');
 
-  if (langCode === 'en-IN') return enPrompt(safe, lead, faq, campuses, streams);
-  if (langCode === 'hi-IN') return hiPrompt(safe, lead, faq, campuses, streams);
-  return tePrompt(safe, lead, faq, campuses, streams); // default to Telugu
+  const base =
+    langCode === 'en-IN' ? enPrompt(safe, lead, faq, campuses, streams)
+    : langCode === 'hi-IN' ? hiPrompt(safe, lead, faq, campuses, streams)
+    : tePrompt(safe, lead, faq, campuses, streams); // default to Telugu
+  // M1 (cross-call memory) + inbound-unknown handling are APPENDED here — the locked
+  // persona files are never touched; these blocks ride on top per call.
+  return base + memoryBlock(lead) + inboundUnknownBlock(lead);
+}
+
+// ---- M1: cross-call memory (G3) ----
+// The CRM already remembers every call (summary, objections, child, promises). A real
+// 30-year counselor NEVER forgets a family — inject that memory into the prompt so she
+// greets them as known people, references the last talk, and never re-asks.
+function memoryBlock(lead) {
+  const rec = crm.get(lead.id);
+  if (!rec || !rec.calls) return '';
+  const when = rec.lastCallAt ? new Date(rec.lastCallAt).toDateString() : 'recently';
+  const lines = [
+    `You have spoken with ${rec.parentName || lead.parentName} ${rec.calls} time(s) before (last: ${when}).`,
+    `Child: ${rec.studentName || lead.studentName}. Stream interest: ${rec.interestStream || lead.interest}.`,
+    rec.lastSummary ? `What happened last call: ${rec.lastSummary}` : '',
+    rec.objections && rec.objections.length ? `Their concerns so far: ${rec.objections.join('; ')}.` : '',
+    rec.appointment && rec.appointment.booked ? `They AGREED to a campus visit (${rec.appointment.when}) — confirm it, do not re-sell it.` : '',
+    rec.nextAction ? `The promised next step was: ${rec.nextAction}` : '',
+  ].filter(Boolean);
+  return `\n\n## RETURNING FAMILY — YOUR REAL MEMORY (use it like a human would)
+${lines.join('\n')}
+MEMORY RULES: you KNOW this family — speak like it. Reference the last conversation naturally in your first substantive turn ("last time we spoke about..."). NEVER re-ask anything written above (name, child, stream, concerns). Continue from the promised next step. If they raised a concern before, acknowledge it before they repeat it — that is what 30 years of care sounds like.`;
+}
+
+// ---- M3/D1: inbound unknown caller ----
+// Owner decision (2026-07-06): talk with them, warmly discover WHY they called — a new
+// enquiry, or an existing parent calling from a different number — then the human team
+// is notified after the call (handled by the bridge's finalize).
+function inboundUnknownBlock(lead) {
+  if (!String(lead.id).startsWith('L-INB')) return '';
+  return `\n\n## INBOUND CALL — UNKNOWN NUMBER (they called US; you do not know them yet)
+You answered the office line. You do NOT know who is calling. Your first job is warm discovery, not pitching:
+1. Ask who is calling and how you can help — they may be a BRAND-NEW enquiry, or an EXISTING parent calling from a different number.
+2. If they mention a student we already work with, ask the student's name so the office can match the records — do not guess or pretend to remember.
+3. If they are new: learn the parent's name, the child's name, class, and stream interest naturally during the conversation (one question at a time, never a form-filling interrogation).
+4. Help them fully as usual (facts rules unchanged). The admissions team will be informed about this call afterwards — you may say a colleague will follow up with the details.`;
 }
 
 // Call flow (user requirement, 2026-07-03): the agent ALWAYS opens in English; from the
 // first reply onward it mirrors whatever language the parent speaks (instant switching).
 // Deterministic — zero LLM latency on the first impression.
-function greetingFor(lead) {
+// M1/M3 variants (2026-07-06): a RETURNING family is greeted as known people; an INBOUND
+// call gets a receiving greeting (they called us); an unknown inbound number gets warm
+// discovery. All stay English-first per the call-flow contract.
+function greetingFor(lead, opts = {}) {
   const first = lead.parentName.split(' ')[0];
-  return {
-    text: `Hello, good evening! This is ${college.agentName} calling from the admissions office at ${college.name}. Am I speaking with ${first}?`,
-    lang: 'en-IN',
-    emotion: 'warm',
-  };
+  const rec = crm.get(lead.id);
+  const returning = !!(rec && rec.calls > 0);
+  const unknown = String(lead.id).startsWith('L-INB');
+  let text;
+  if (opts.inbound && unknown) {
+    text = `Hello, good evening! Admissions office, ${college.name} — this is ${college.agentName} speaking. How can I help you?`;
+  } else if (opts.inbound && returning) {
+    text = `Hello ${first}! This is ${college.agentName} at ${college.name} admissions — so nice to hear from you again. How can I help?`;
+  } else if (opts.inbound) {
+    text = `Hello, good evening! Admissions office, ${college.name} — this is ${college.agentName}. Am I speaking with ${first}?`;
+  } else if (returning) {
+    text = `Hello, good evening ${first}! This is ${college.agentName} from ${college.name} — we spoke earlier about ${rec.studentName || lead.studentName}. Is this a good time?`;
+  } else {
+    text = `Hello, good evening! This is ${college.agentName} calling from the admissions office at ${college.name}. Am I speaking with ${first}?`;
+  }
+  return { text, lang: 'en-IN', emotion: 'warm' };
 }
 
 const LANG_CODE = { te: 'te-IN', hi: 'hi-IN', en: 'en-IN' };

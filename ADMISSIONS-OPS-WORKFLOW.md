@@ -101,7 +101,9 @@ Lead arrives → AI responds within SECONDS (voice call or WhatsApp)
 | **MVP, full replace** @ ₹1,00,000 | ₹1,00,000 | **₹1,25,000 (56%)** | ₹15,00,000 |
 | **MVP hybrid** (system ₹1L + 1 human ₹15k) | ₹1,15,000 | **₹1,10,000 (49%)** | ₹13,20,000 |
 
-Our estimated run cost behind the ₹1L price: ₹45–75k/mo at 200 calls/day, 7-min avg (Sarvam ₹26–42k **[ASK: real dashboard billing]**, Indian telephony ₹13–22k **[ASK: Exotel/Ozonetel quote]**, WhatsApp/SMS ₹3–6k, infra ₹2–5k). Twilio is testing-only; at scale its ~₹2.5–3.5/min triples telephony cost.
+Our estimated run cost behind the ₹1L price: ₹45–75k/mo at 200 calls/day, 7-min avg (Sarvam ₹26–42k **[ASK: real dashboard billing]**, Indian telephony ₹13–22k **[ASK: Exotel quote]**, WhatsApp/SMS ₹3–6k, infra ₹2–5k). Twilio is testing-only; at scale its ~₹2.5–3.5/min triples telephony cost.
+
+**Telephony strategy (owner-locked 2026-07-06):** Twilio for dev/testing only → **Exotel for MVP + pilot** (Indian, TRAI-compliant, ~₹0.3–0.6/min) → **Jio SIP trunks at 10+ college scale**, when volume justifies the compliance/infra burden (enterprise trunk contracts, own session controller, PE-TM registration, 140-series numbering). Re-run the cost crossover at 3–5 colleges.
 
 ## The 4-month comparison (one full admission season)
 

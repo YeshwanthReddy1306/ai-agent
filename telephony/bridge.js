@@ -40,7 +40,7 @@ const { summarize } = require('../lib/callsummary');
 const crm = require('../lib/crm');
 const scheduler = require('../lib/scheduler');
 const dnc = require('../lib/dnc');
-const leads = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'leads.json'), 'utf8'));
+const leadsStore = require('../lib/leads'); // shared, hot-reloading lead store (M2/M3)
 
 const PORT = Number(process.env.TELEPHONY_PORT) || 3200;
 const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/$/, ''); // e.g. https://abc.ngrok.app
@@ -84,9 +84,10 @@ function toRawMulaw(b64) {
 
 // ---------- per-call session over one Twilio media stream ----------
 class CallSession {
-  constructor(ws, lead) {
+  constructor(ws, lead, opts = {}) {
     this.ws = ws;
     this.lead = lead;
+    this.inbound = !!opts.inbound; // M3: parent called US
     this.streamSid = null;
     this.personaLang = 'en-IN'; // English-first opening; mirrors the caller from turn one
     this.langCommitted = false; // first switch is instant; hysteresis (2 turns) only after
@@ -127,7 +128,7 @@ class CallSession {
 
   async onStart(msg) {
     this.streamSid = msg.start.streamSid;
-    const greeting = greetingFor(this.lead);
+    const greeting = greetingFor(this.lead, { inbound: this.inbound });
     this.lastLang = greeting.lang;
     this.messages.push({ role: 'assistant', content: greeting.text });
     // Deterministic greeting — cached audio (free win #3): the caller hears Sneha
@@ -228,6 +229,26 @@ class CallSession {
     if (this.finalized) return;
     this.finalized = true;
     try {
+      // Missed-call follow-up (owner rule 2026-07-06): if the call produced NO
+      // conversation (nobody spoke — didn't pick up, hung up on the greeting), don't
+      // summarize air. Route by prior engagement: known/engaged family → WhatsApp/SMS
+      // message; never-engaged lead → retry voice call later.
+      const userTurns = this.messages.filter((m) => m.role === 'user').length;
+      if (!userTurns) {
+        const rec = crm.get(this.lead.id);
+        const engaged = !!(rec && rec.calls > 0);
+        const base = { leadId: this.lead.id, parent: this.lead.parentName, phone: this.lead.phone, student: this.lead.studentName };
+        if (engaged) {
+          scheduler.schedule({ ...base, type: 'missed_call_message', dueAt: new Date(Date.now() + 10 * 60000).toISOString(), channel: 'whatsapp',
+            message: `Namaste ${this.lead.parentName}, this is ${college.agentName} from ${college.name} — we tried to reach you about ${this.lead.studentName}. Reply here, or we will call again at a better time.` });
+        } else {
+          scheduler.schedule({ ...base, type: 'missed_call_retry', dueAt: new Date(Date.now() + 4 * 3600000).toISOString(), channel: 'call',
+            message: `Retry call: ${this.lead.parentName} (${this.lead.studentName}) did not answer / did not speak.` });
+        }
+        console.log(`[bridge] no conversation — ${engaged ? 'WhatsApp/SMS follow-up queued' : 'voice retry queued'} for ${this.lead.parentName}`);
+        return;
+      }
+
       const summary = await summarize(this.messages, college.agentName);
       crm.upsertLead(this.lead, summary);
       scheduler.fromCall(this.lead, summary);
@@ -244,6 +265,16 @@ class CallSession {
           summary, messages: this.messages,
         }, null, 2));
       } catch (e) { console.error('[bridge] transcript save failed:', e.message); }
+      // D1 (owner decision): every unknown-number inbound call gets flagged to the human
+      // team after the call — it may be a new enquiry OR an existing parent on a new number.
+      if (String(this.lead.id).startsWith('L-INB')) {
+        scheduler.schedule({
+          leadId: this.lead.id, parent: this.lead.parentName, phone: this.lead.phone, student: this.lead.studentName,
+          type: 'human_review_inbound', dueAt: new Date().toISOString(), channel: 'call',
+          message: `REVIEW: unknown number ${this.lead.phone} called in. Summary: ${summary.summary} — match to an existing family or create the enquiry.`,
+        });
+        console.log(`[bridge] unknown inbound ${this.lead.phone} flagged for human review`);
+      }
       console.log(`[bridge] call finalized for ${this.lead.parentName} · interest ${summary.interest}` + (summary.appointment.booked ? ` · visit ${summary.appointment.when}` : ''));
     } catch (e) {
       console.error('[bridge] finalize failed:', e.message);
@@ -251,8 +282,61 @@ class CallSession {
   }
 }
 
-// ---------- HTTP: /dial + health ----------
+// ---------- HTTP: /dial + /incoming + /call-status + health ----------
+const parseForm = (raw) => Object.fromEntries(new URLSearchParams(raw));
+
+// Missed-dial follow-up shared by /call-status (never connected) — same owner rule as
+// finalize: engaged family → WhatsApp/SMS; never-engaged → retry voice call.
+function scheduleMissed(lead) {
+  const rec = crm.get(lead.id);
+  const engaged = !!(rec && rec.calls > 0);
+  const base = { leadId: lead.id, parent: lead.parentName, phone: lead.phone, student: lead.studentName };
+  if (engaged) {
+    scheduler.schedule({ ...base, type: 'missed_call_message', dueAt: new Date(Date.now() + 10 * 60000).toISOString(), channel: 'whatsapp',
+      message: `Namaste ${lead.parentName}, this is ${college.agentName} from ${college.name} — we tried to reach you about ${lead.studentName}. Reply here, or we will call again at a better time.` });
+  } else {
+    scheduler.schedule({ ...base, type: 'missed_call_retry', dueAt: new Date(Date.now() + 4 * 3600000).toISOString(), channel: 'call',
+      message: `Retry call: ${lead.parentName} (${lead.studentName}) — no answer.` });
+  }
+  console.log(`[bridge] missed dial — ${engaged ? 'message' : 'voice retry'} queued for ${lead.parentName}`);
+}
+
 const server = http.createServer((req, res) => {
+  // M3: INBOUND — Twilio hits this webhook when someone calls OUR number. We answer with
+  // TwiML that opens the media stream, tagging the caller's number so the session can
+  // recognize a known family (M1 memory) or run warm discovery for an unknown one (D1).
+  if (req.method === 'POST' && req.url.startsWith('/incoming')) {
+    let raw = '';
+    req.on('data', (c) => (raw += c));
+    req.on('end', () => {
+      const form = parseForm(raw);
+      const from = form.From || '';
+      console.log(`[bridge] INBOUND call from ${from || 'unknown'}`);
+      const wss = PUBLIC_URL.replace(/^http/, 'ws') + '/media?inbound=1&from=' + encodeURIComponent(from);
+      res.writeHead(200, { 'Content-Type': 'text/xml' });
+      res.end(`<Response><Connect><Stream url="${wss}"/></Connect></Response>`);
+    });
+    return;
+  }
+
+  // Missed-dial callback: Twilio reports outbound calls that never connected
+  // (no-answer / busy / failed) — the media stream never opens for those, so the
+  // follow-up must be queued here.
+  if (req.method === 'POST' && req.url.startsWith('/call-status')) {
+    let raw = '';
+    req.on('data', (c) => (raw += c));
+    req.on('end', () => {
+      const form = parseForm(raw);
+      const status = (form.CallStatus || '').toLowerCase();
+      const leadId = new URL(req.url, 'http://x').searchParams.get('leadId');
+      const lead = leadsStore.byId(leadId);
+      if (lead && ['no-answer', 'busy', 'failed', 'canceled'].includes(status)) scheduleMissed(lead);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+    return;
+  }
+
   if (req.method === 'POST' && req.url === '/dial') {
     let raw = '';
     req.on('data', (c) => (raw += c));
@@ -267,7 +351,7 @@ const server = http.createServer((req, res) => {
           res.writeHead(401, { 'Content-Type': 'application/json' });
           return res.end(JSON.stringify({ error: 'Unauthorized — include the access key' }));
         }
-        const lead = leads.find((l) => l.id === body.leadId) || leads[0];
+        const lead = leadsStore.byId(body.leadId) || leadsStore.all()[0];
         if (!SID || !TOKEN || !FROM || !PUBLIC_URL) throw new Error('Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, PUBLIC_URL in .env');
         if (!body.to) throw new Error('Provide "to": "+91..." (E.164)');
         if (dnc.has(body.to)) throw new Error(`${body.to} is on the Do-Not-Call list — refusing to dial`);
@@ -279,7 +363,13 @@ const server = http.createServer((req, res) => {
             Authorization: 'Basic ' + Buffer.from(`${SID}:${TOKEN}`).toString('base64'),
             'Content-Type': 'application/x-www-form-urlencoded',
           },
-          body: new URLSearchParams({ To: body.to, From: FROM, Twiml: twiml }),
+          body: new URLSearchParams({
+            To: body.to, From: FROM, Twiml: twiml,
+            // Missed-dial detection: Twilio reports the final call status here so
+            // unanswered calls get their follow-up queued (they never open the stream).
+            StatusCallback: `${PUBLIC_URL}/call-status?leadId=${encodeURIComponent(lead.id)}`,
+            StatusCallbackEvent: 'completed',
+          }),
         });
         const j = await r.json();
         if (!r.ok) throw new Error(j.message || `Twilio ${r.status}`);
@@ -299,10 +389,28 @@ const server = http.createServer((req, res) => {
 // ---------- WS: Twilio media stream ----------
 const wss = new WebSocketServer({ server, path: '/media' });
 wss.on('connection', (ws, req) => {
-  const leadId = new URL(req.url, 'http://x').searchParams.get('leadId');
-  const lead = leads.find((l) => l.id === leadId) || leads[0];
-  const session = new CallSession(ws, lead);
-  console.log(`media stream connected for lead ${lead.id} (${lead.parentName})`);
+  const params = new URL(req.url, 'http://x').searchParams;
+  const inbound = params.get('inbound') === '1';
+  let lead;
+  if (inbound) {
+    // M3: recognize the caller by number (M1 memory kicks in for known families);
+    // unknown number → provisional lead + warm-discovery persona block (D1).
+    const from = params.get('from') || '';
+    lead = leadsStore.findByPhone(from);
+    if (!lead) {
+      lead = {
+        id: 'L-INB-' + Date.now().toString(36),
+        parentName: 'there', // greeting says "How can I help you?" — no name assumed
+        studentName: 'your child', gender: 'male', language: 'te',
+        area: '', tenthResult: '', interest: 'to be discovered',
+        source: 'inbound call from unknown number', phone: from || 'unknown',
+      };
+    }
+  } else {
+    lead = leadsStore.byId(params.get('leadId')) || leadsStore.all()[0];
+  }
+  const session = new CallSession(ws, lead, { inbound });
+  console.log(`media stream connected ${inbound ? '[INBOUND]' : ''} for ${lead.id} (${lead.parentName}, ${lead.phone})`);
   ws.on('message', (data) => {
     let msg;
     try { msg = JSON.parse(data); } catch { return; }

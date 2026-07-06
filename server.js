@@ -30,7 +30,7 @@ const PORT = Number(process.env.PORT) || 3100;
 const MAX_CALL_MS = (Number(process.env.MAX_CALL_MINUTES) || college.compliance?.maxCallMinutes || 6) * 60000;
 const RETENTION_DAYS = Number(process.env.RETENTION_DAYS) || 90;
 
-const leads = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'leads.json'), 'utf8'));
+const leadsStore = require('./lib/leads'); // shared, hot-reloading lead store (M2)
 const calls = new Map(); // callId -> { lead, messages, startedAt, lastLang, usage, wrapUpSent, touched }
 const CALL_LOG = path.join(__dirname, 'data', 'calls.jsonl');
 
@@ -136,7 +136,16 @@ async function handleApi(req, res, url, body) {
       services: serviceHealth, brain: brainStatus(),
     });
   }
-  if (req.method === 'GET' && url.pathname === '/api/leads') return json(res, 200, leads);
+  if (req.method === 'GET' && url.pathname === '/api/leads') return json(res, 200, leadsStore.all());
+
+  // M2: lead import — CSV text in, per-row verdicts out. Nothing silently dropped.
+  if (req.method === 'POST' && url.pathname === '/api/leads/import') {
+    const parsed = leadsStore.parseCsv(body.csv || '');
+    if (parsed.error) return json(res, 400, { error: parsed.error });
+    const report = leadsStore.addMany(parsed.rows);
+    console.log(`[import] ${report.added.length} added, ${report.rejected.length} rejected`);
+    return json(res, 200, { added: report.added.length, addedLeads: report.added, rejected: report.rejected });
+  }
 
   if (req.method === 'GET' && url.pathname === '/api/calls') {
     let rows = [];
@@ -162,7 +171,7 @@ async function handleApi(req, res, url, body) {
   }
 
   if (req.method === 'POST' && url.pathname === '/api/call/start') {
-    const lead = leads.find((l) => l.id === body.leadId) || leads[0];
+    const lead = leadsStore.byId(body.leadId) || leadsStore.all()[0];
     const callId = crypto.randomUUID();
     const agent = freshAgent(); // pick up any persona edits made since the last call
     const greeting = agent.greetingFor(lead);

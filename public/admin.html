@@ -31,6 +31,19 @@
   <h1>Admissions CRM</h1>
   <div class="sub" id="sub">Loading…</div>
   <div class="cards" id="cards"></div>
+
+  <!-- M2: lead import -->
+  <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:24px">
+    <b>Import leads (CSV)</b>
+    <div class="muted" style="font-size:13px;margin:4px 0 10px">
+      Columns: <code>parentName, phone, studentName, gender, language(te/hi/en), area, tenthResult, interest, source</code>
+      — only <code>parentName</code> and <code>phone</code> are required. Excel? Save-As → CSV first. Simple fields only (no commas inside a field).
+    </div>
+    <input type="file" id="csvFile" accept=".csv,text/csv" />
+    <button onclick="importCsv()" style="background:var(--cold);color:#fff;border:0;border-radius:8px;padding:6px 14px;cursor:pointer;font-weight:600">Upload</button>
+    <div id="importResult" style="font-size:13px;margin-top:10px"></div>
+  </div>
+
   <table><thead><tr>
     <th>Parent / Student</th><th>Stream</th><th>Interest</th><th>Campus visit</th><th>Calls</th><th>Next action</th>
   </tr></thead><tbody id="rows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody></table>
@@ -55,6 +68,26 @@ async function load() {
   document.getElementById('rows').innerHTML = rows || '<tr><td colspan="6" class="empty">No leads yet — complete a call to see it here.</td></tr>';
 }
 load();
+
+// M2: read the chosen CSV and send it for validation + import; show per-row verdicts.
+async function importCsv() {
+  const f = document.getElementById('csvFile').files[0];
+  const out = document.getElementById('importResult');
+  if (!f) { out.textContent = 'Choose a CSV file first.'; return; }
+  out.textContent = 'Uploading…';
+  try {
+    const csv = await f.text();
+    const r = await fetch('/api/leads/import', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ csv }),
+    }).then(x => x.json());
+    if (r.error) { out.innerHTML = `<span style="color:var(--hot)">✗ ${r.error}</span>`; return; }
+    const rej = (r.rejected || []).map(x => `<div style="color:var(--warm)">row ${x.line}: ${x.reason}</div>`).join('');
+    out.innerHTML = `<span style="color:var(--ok)">✓ ${r.added} lead(s) added to the calling queue.</span>` +
+      (rej ? `<div style="margin-top:6px"><b>Not imported:</b>${rej}</div>` : '');
+    load();
+  } catch (e) { out.innerHTML = `<span style="color:var(--hot)">✗ upload failed: ${e.message}</span>`; }
+}
 </script>
 </body>
 </html>
