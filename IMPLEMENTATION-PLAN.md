@@ -10,6 +10,7 @@
 | G2 | **Minimize token/usage cost** — without touching what makes Sneha human | MVP + Final |
 | G3 | **The soul:** 30+yr veteran with true domain mastery; warm cup-of-tea feel; knows WHO it's talking to (father/mother/son/daughter); **remembers past calls** (child's name, prior conversation, details); college never feels the team's absence — performs BETTER than the humans | MVP + Final |
 | G4 | **Zero hallucination** — never a false fee, promise, or invented fact, ever | MVP + Final |
+| G5 | **HARD COST CEILING (owner 2026-07-06):** total run-cost (Sarvam+Groq+telephony+WhatsApp+infra, incl. recurring Dept-12) **< HALF the replaced team's salaries** — MVP < ₹1,12,500/mo, final < ₹2,25,000/mo — at full volume, voice/performance untouched | MVP + Final |
 | R1 | **Price-truth rule:** no invented prices. Official sources only; if unfindable → tell the owner and ask |
 | R2 | Quality guardrails: sarvam-105b for te/hi (never swapped), Bulbul v3 + Simran (owner-locked), one LLM hop, no canned answers on the persona path, personas SHA-locked |
 
@@ -73,13 +74,27 @@ Preflight green, 3 rehearsal calls per language reviewed, Sarvam credits confirm
 
 Curated verified facts DB (college.json) → sanitizer (unknown = "office will confirm") → on-demand fact injection (deterministic, no retrieval errors) → deterministic number-speaking → 16-question golden suite (invented-number detector) → edge-case capture → human answers → DB grows only through verification. Final product: OCR/RAG feeds the DB **at ingestion with human approval**, never a live call. Facts freshness gate (30-day warning) already enforced by preflight.
 
+## G5 cost-attack plan (telephony research 2026-07-06)
+
+| Lever | Finding | Status |
+|---|---|---|
+| **TTS line-cache** | Verbatim playbook scripts repeat by design → identical lines ≤200 chars disk-cached; repeat = ₹0. Est. 25–40% off the biggest cost line at volume | ✅ BUILT (web+phone) |
+| **FreJun unlimited India** | ₹1,349/user/mo Standard, ₹1,699 Pro — "genuinely unlimited" India in/outbound per their own [knowledge base](https://knowledge.frejun.com/frejun-india-plans-and-pricing). ⚠ Owner's "₹0.15/min Teler" figure NOT confirmed — FreJun's own blog cites **$0.15/min** (≈₹13/min) for "telephony + AI compute" bundles. **[ASK FreJun: does per-user unlimited apply to API/AI-agent traffic, and what is Teler's real India per-min rate?]** | Lead option |
+| **Toll-free masking (principal's model)** | Real, ~₹2–4k/mo — but built for human agents; also needs DLT compliance | Fallback |
+| **Employee-SIM model (principal's model)** | ❌ REJECTED for us: TRAI's amendment **blocks 10-digit numbers for business communication**; unregistered telemarketers face a **20-call/day cap and disconnection** ([TRAI regs](https://www.trai.gov.in/sites/default/files/2025-02/Regulation_12022025.pdf), [guide](https://www.elisiontec.com/140-and-160-series-regulations-from-trai-complete-guide-faqs/)). Colleges ride a gray zone per-staff-SIM; an automated system cannot | Non-compliant |
+| **Our compliance lane** | Calls to existing enquiries = service/transactional → **160-series number** + PE-TM/DLT registration (140-series is for promotional) | Required before pilot |
+| **WhatsApp-first substitution** | Reminder as template ₹0.115 vs reminder call ~₹4+ → route every non-conversation touch to WhatsApp | Scheduler already prefers it |
+| Ameyo / CloudConnect | Quote-only pricing (no public rates) | Quote at pilot |
+
 ## Current [ASK] ledger (price-truth rule)
 
-1. Exotel per-minute + channel rental — official quote needed (I can draft the email).
-2. Sarvam paid-plan billing + cache-hit visibility + fine-tuning availability.
-3. WhatsApp Business API keys + Meta conversation pricing at our volume.
-4. Jio SIP trunk enterprise rates (at P9 time).
-5. Resonance internals: shifts structure, lead volume, conversion funnel, real salaries, current CRM.
+1. **FreJun sales:** does unlimited-per-user cover API/AI-agent (Teler) traffic? Real India per-minute for Teler? Channel/number costs?
+2. Exotel per-minute + channel rental — official quote (comparison anchor).
+3. Sarvam paid-plan billing + volume/enterprise pricing + cache-hit visibility + fine-tuning availability.
+4. WhatsApp Business API keys + Meta conversation pricing at our volume.
+5. Jio SIP trunk enterprise rates (at P9 time).
+6. Resonance internals: shifts structure, lead volume, conversion funnel, real salaries, current CRM.
+7. 160-series number + DLT/PE-TM registration process via the chosen telephony provider (pre-pilot compliance gate).
 
 ## Owner decisions — RESOLVED 2026-07-06
 

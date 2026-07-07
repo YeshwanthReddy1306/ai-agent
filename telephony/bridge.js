@@ -123,7 +123,12 @@ class CallSession {
 
   async speak(text, lang, emotion) {
     const ttsText = spokenNumbers(ttsPhonetics(text, lang), lang); // numbers → natural speech
-    const audios = await ttsSpeak(ttsText, lang, emotion, { sampleRate: 8000, codec: 'mulaw' });
+    const opts = { sampleRate: 8000, codec: 'mulaw' };
+    // G5 cost goal: short lines (all verbatim playbook scripts) are disk-cached —
+    // an identical line spoken on any later call costs ₹0. Same voice, zero quality change.
+    const audios = ttsText.length <= 200
+      ? (await ttsCachedLine(ttsText, lang, emotion, opts)).audios
+      : await ttsSpeak(ttsText, lang, emotion, opts);
     for (const a of audios) this.sendAudio(toRawMulaw(a));
   }
 

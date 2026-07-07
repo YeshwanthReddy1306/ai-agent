@@ -117,6 +117,15 @@ async function speakSafe(call, text, lang, emotion) {
     // Deterministic delivery pass: acronym phonetics, then numbers → natural spoken words
     // (so no digit is ever read grammatically, regardless of what the LLM emitted).
     const ttsText = spokenNumbers(ttsPhonetics(text, lang), lang);
+    // G5 cost goal: TTS is ~80% of the Sarvam bill. Short lines (≤200 chars — most
+    // 15-word turns, and ALL the verbatim playbook scripts, which repeat by design)
+    // are disk-cached: an identical line ever spoken again costs ₹0. Usage is metered
+    // only on real synthesis.
+    if (ttsText.length <= 200) {
+      const r = await ttsCachedLine(ttsText, lang, emotion);
+      if (!r.cached) addUsage(call, { ttsChars: ttsText.length });
+      return r.audios;
+    }
     addUsage(call, { ttsChars: ttsText.length });
     return await ttsSpeak(ttsText, lang, emotion);
   } catch (e) {
