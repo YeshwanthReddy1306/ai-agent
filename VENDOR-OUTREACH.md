@@ -2,6 +2,17 @@
 *2026-07-07 · Purpose: turn every [ASK] estimate into a vendor-stated fact (price-truth rule). Send the emails AND call for speed.*
 *Contacts below are from official pages + business directories — VERIFY the number on the vendor's own contact page before dialing; I did not invent any of them.*
 
+## ORDER OF ATTACK (don't call everyone — branch on FreJun's answer)
+
+```
+1. FreJun  → ask THE question: does ₹1,349 unlimited cover AI/API traffic?
+     ├─ YES, covered  → FreJun wins on price. STOP. Skip Exotel/Ozonetel entirely.
+     └─ NO / metered / weak DLT support → THEN call Exotel (the real alternative),
+                                          and only then Ozonetel/MyOperator if needed.
+2. Sarvam  → always (only one voice vendor; via Cowork form — prompt at the bottom).
+```
+FreJun is the shot; Exotel is insurance you buy only if the shot misses.
+
 ---
 
 ## 1. FreJun (telephony — the biggest cost swing)
@@ -67,9 +78,9 @@
 
 ---
 
-## 3. Exotel (telephony comparison anchor)
+## 3. Exotel — ONLY IF FreJun's API answer is bad (comparison anchor / insurance)
 
-**Why them:** the standard India cloud-telephony baseline to price FreJun against; also strong on compliance/DLT.
+**Skip this unless FreJun metered API traffic or was vague on DLT.** The standard India cloud-telephony baseline; strong on compliance.
 
 **Contacts** ([contact page](https://exotel.com/contact/) is authoritative):
 - Sales phone (India): **+91 80889 19888** (also WhatsApp for support)
@@ -88,7 +99,8 @@
 
 ---
 
-## Bonus (optional, same script): Ozonetel +91 (via [ozonetel.com](https://ozonetel.com/) contact) · MyOperator ([myoperator.com](https://myoperator.com/)) — only if you want a third quote.
+## Ozonetel / MyOperator — ONLY IF you want a third quote after Exotel
+[ozonetel.com](https://ozonetel.com/) · [myoperator.com](https://myoperator.com/) — same script as Exotel. Don't bother unless FreJun AND Exotel both disappoint.
 
 ## Golden rule for all calls
 Make THEM state the number. Don't accept "starts at" — ask "at MY volume of [X] minutes and [Y] concurrent calls, what is the all-in monthly?" Get it **in writing** (email/WhatsApp) so it's a fact, not a sales line.
