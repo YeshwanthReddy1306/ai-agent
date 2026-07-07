@@ -10,7 +10,7 @@
 | G2 | **Minimize token/usage cost** — without touching what makes Sneha human | MVP + Final |
 | G3 | **The soul:** 30+yr veteran with true domain mastery; warm cup-of-tea feel; knows WHO it's talking to (father/mother/son/daughter); **remembers past calls** (child's name, prior conversation, details); college never feels the team's absence — performs BETTER than the humans | MVP + Final |
 | G4 | **Zero hallucination** — never a false fee, promise, or invented fact, ever | MVP + Final |
-| G5 | **HARD COST CEILING (owner 2026-07-06):** total run-cost (Sarvam+Groq+telephony+WhatsApp+infra, incl. recurring Dept-12) **< HALF the replaced team's salaries** — MVP < ₹1,12,500/mo, final < ₹2,25,000/mo — at full volume, voice/performance untouched | MVP + Final |
+| G5 | **HARD COST CEILING (owner 2026-07-06, 3 tiers, each at its own volume):** total run-cost (Sarvam+Groq+telephony+WhatsApp+infra, incl. recurring Dept-12) **< HALF the replaced team's salaries** — 5-member tier < ₹37,500/mo · MVP/15 < ₹1,12,500/mo · final/30 < ₹2,25,000/mo — voice/performance untouched. Current estimates with levers: ~₹20–25k / ~₹60–75k / ~₹1.2–1.5L — **all three under ceiling** (pending FreJun + Sarvam ASKs) | All tiers |
 | R1 | **Price-truth rule:** no invented prices. Official sources only; if unfindable → tell the owner and ask |
 | R2 | Quality guardrails: sarvam-105b for te/hi (never swapped), Bulbul v3 + Simran (owner-locked), one LLM hop, no canned answers on the persona path, personas SHA-locked |
 
