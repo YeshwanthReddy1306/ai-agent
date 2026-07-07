@@ -39,6 +39,16 @@ Checklist per admitted/visiting lead (Aadhaar, TC, SSC memo); scheduler sends Wh
 **M7. G1 latency pack (MVP-safe wins)**
 Done: keep-alive sockets, cached greeting. Next: (a) endpoint tuning from real call data (down from 1300ms where safe); (b) TRIAL streaming TTS in the current bridge via Sarvam's TTS WebSocket (first-chunk playback) — attempt only if it doesn't destabilize; (c) move server to an Indian region + Exotel (kills 150–300ms network + enables inbound properly). MVP acceptance: phone P95 ≤ 2.5s.
 
+**M4. WhatsApp brochures — ✅ BUILT (lib/ops.js + lib/notify.js) 2026-07-07.** Warm/hot call auto-queues the matching brochure link (ResoNET + DLPD/residential by interest). Sends via unified channel: WhatsApp when keys live, SMS fallback now. Placeholder-safe.
+
+**M9. Funnel dashboard — ✅ BUILT.** /api/funnel + admin cards: enquiries → contacted → conversations → hot → visits → admitted.
+
+**Dept 1 enquiry capture — ✅ BUILT.** Public /enquiry.html + /api/enquiry (outside the auth gate); creates a deduped/DNC-checked lead + queues an INSTANT callback (5-min golden window).
+
+**Dept 9 payments framework — ✅ BUILT.** /api/payments/plan + /paid; installment schedule + pre-due-date WhatsApp reminders; PAYMENT_LINK_BASE placeholder until the college's gateway at contract.
+
+**Dept 12 post-admission — ✅ BUILT (core retention product).** Roster import + per-language templates (absent/result/fee/pta/circular) + filtered broadcast (all/class/section) via the WhatsApp-first channel. Admin panel live.
+
 **M8. G2 cost pack**
 (a) Rolling summary: keep last 8–10 turns verbatim + ~120-token running summary of older turns — REQUIRED to also preserve G3 memory on 15–20-min calls; golden-suite check that early-call facts survive. (b) Confirm cache billing once on paid plan [ASK]. (c) TTS text-normalization pass (strip anything unspoken before synthesis — every char is money).
 

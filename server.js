@@ -21,6 +21,7 @@ const { parseTag, applyRegister, ttsPhonetics, nextPersonaLang } = require('./li
 const { spokenNumbers } = require('./lib/numbers');
 const crm = require('./lib/crm');
 const scheduler = require('./lib/scheduler');
+const ops = require('./lib/ops');
 const { brainStatus } = require('./lib/brain');
 const { summarize } = require('./lib/callsummary');
 const { college } = require('./agent/persona');
@@ -147,6 +148,26 @@ async function handleApi(req, res, url, body) {
   }
   if (req.method === 'GET' && url.pathname === '/api/leads') return json(res, 200, leadsStore.all());
 
+  // ---- Dept 1: public enquiry capture (website widget / form) ----
+  // A prospective parent submits their details; we create the lead (deduped + DNC-checked)
+  // and flag it for an immediate callback — the 5-minute golden window that beats humans.
+  if (req.method === 'POST' && url.pathname === '/api/enquiry') {
+    const r = leadsStore.addMany([{
+      _line: 1, parentName: body.parentName, phone: body.phone, studentName: body.studentName,
+      gender: body.gender, language: body.language, area: body.area, interest: body.interest,
+      source: 'website enquiry form',
+    }]);
+    if (r.added.length) {
+      const lead = r.added[0];
+      scheduler.schedule({ leadId: lead.id, parent: lead.parentName, phone: lead.phone, student: lead.studentName,
+        type: 'instant_callback', dueAt: new Date().toISOString(), channel: 'call',
+        message: `NEW WEB ENQUIRY — call ${lead.parentName} about ${lead.studentName} NOW (5-minute golden window).` });
+      return json(res, 200, { ok: true, message: "Thank you! Our admissions counselor will call you within minutes." });
+    }
+    const reason = (r.rejected[0] || {}).reason || 'could not accept the enquiry';
+    return json(res, 200, { ok: false, message: reason === 'on the Do-Not-Call list' ? 'Thank you.' : `Please check your details: ${reason}` });
+  }
+
   // M2: lead import — CSV text in, per-row verdicts out. Nothing silently dropped.
   if (req.method === 'POST' && url.pathname === '/api/leads/import') {
     const parsed = leadsStore.parseCsv(body.csv || '');
@@ -172,6 +193,56 @@ async function handleApi(req, res, url, body) {
 
   if (req.method === 'GET' && url.pathname === '/api/followups') {
     return json(res, 200, scheduler.listFollowups());
+  }
+
+  // ---- Dept 6: documents ----
+  if (req.method === 'GET' && url.pathname === '/api/documents') {
+    return json(res, 200, ops.documentStatus(url.searchParams.get('leadId')));
+  }
+  if (req.method === 'POST' && url.pathname === '/api/documents/mark') {
+    ops.markDocument(body.leadId, body.doc, body.received !== false);
+    return json(res, 200, { ok: true, status: ops.documentStatus(body.leadId) });
+  }
+
+  // ---- Dept 9: payments ----
+  if (req.method === 'POST' && url.pathname === '/api/payments/plan') {
+    const rec = ops.setPaymentPlan(body.leadId, { total: body.total, installments: body.installments });
+    const lead = leadsStore.byId(body.leadId);
+    if (lead) ops.schedulePaymentReminders(lead);
+    return json(res, 200, { ok: true, payment: rec.payment });
+  }
+  if (req.method === 'POST' && url.pathname === '/api/payments/paid') {
+    return json(res, 200, { ok: true, rec: ops.markInstallmentPaid(body.leadId, body.label) });
+  }
+
+  // ---- Dept 12: post-admission roster + broadcast ----
+  if (req.method === 'GET' && url.pathname === '/api/roster') {
+    return json(res, 200, ops.roster());
+  }
+  if (req.method === 'POST' && url.pathname === '/api/roster/import') {
+    const parsed = leadsStore.parseCsv(body.csv || '');
+    if (parsed.error) return json(res, 400, { error: parsed.error });
+    const added = ops.importRoster(parsed.rows);
+    return json(res, 200, { added: added.length });
+  }
+  if (req.method === 'POST' && url.pathname === '/api/notify') {
+    const r = await ops.notifyRoster(body.type, body.detail || '', body.filter || {});
+    return json(res, 200, { ok: true, ...r });
+  }
+
+  // ---- M9: funnel ----
+  if (req.method === 'GET' && url.pathname === '/api/funnel') {
+    const leadRows = crm.listLeads();
+    const calls = leadRows.reduce((n, l) => n + (l.calls || 0), 0);
+    return json(res, 200, {
+      enquiries: leadsStore.all().length,
+      contacted: leadRows.length,
+      conversations: calls,
+      hot: leadRows.filter((l) => l.interest === 'hot').length,
+      warm: leadRows.filter((l) => l.interest === 'warm').length,
+      visitsBooked: leadRows.filter((l) => l.appointment && l.appointment.booked).length,
+      admitted: ops.roster().length,
+    });
   }
 
   if (req.method === 'GET' && url.pathname === '/api/acks') {
@@ -336,10 +407,15 @@ const ACCESS_SECRET = process.env.ACCESS_SECRET || '';
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
+  // Dept 1: the public enquiry form + its submit endpoint are intentionally OUTSIDE the
+  // shared-secret gate — a prospective parent must reach them without a key. They only
+  // CREATE a lead (rate-limited by nothing sensitive); they read nothing private.
+  const isPublic = url.pathname === '/enquiry.html' || url.pathname === '/api/enquiry';
+
   // Shared-secret gate (H4): if ACCESS_SECRET is set, require it before ANY route so a
   // shared demo link can't be used by strangers to burn Sarvam/Groq/Twilio credits.
   // Accept it via HTTP Basic auth (browser prompts once) OR a ?key= query param.
-  if (ACCESS_SECRET) {
+  if (ACCESS_SECRET && !isPublic) {
     const auth = req.headers.authorization || '';
     let ok = url.searchParams.get('key') === ACCESS_SECRET;
     if (!ok && auth.startsWith('Basic ')) {

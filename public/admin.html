@@ -45,29 +45,86 @@
   </div>
 
   <table><thead><tr>
-    <th>Parent / Student</th><th>Stream</th><th>Interest</th><th>Campus visit</th><th>Calls</th><th>Next action</th>
-  </tr></thead><tbody id="rows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody></table>
+    <th>Parent / Student</th><th>Stream</th><th>Interest</th><th>Campus visit</th><th>Docs</th><th>Calls</th><th>Next action</th>
+  </tr></thead><tbody id="rows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody></table>
+
+  <!-- Dept 12: post-admission parent communication -->
+  <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-top:24px">
+    <b>Post-admission messages (Dept 12)</b>
+    <div class="muted" style="font-size:13px;margin:4px 0 10px">Import admitted students (columns <code>studentName, parentName, phone, language, class, section</code>), then broadcast in the parent's language. WhatsApp when keys are live; SMS meanwhile.</div>
+    <input type="file" id="rosterFile" accept=".csv" />
+    <button onclick="importRoster()" style="background:var(--cold);color:#fff;border:0;border-radius:8px;padding:6px 14px;cursor:pointer;font-weight:600">Import roster</button>
+    <span id="rosterInfo" class="muted" style="font-size:13px"></span>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <select id="ntype" style="padding:6px;border-radius:8px;background:#0b1020;color:var(--txt);border:1px solid var(--line)">
+        <option value="absent">Absent alert</option><option value="result">Test result</option>
+        <option value="fee">Fee due</option><option value="pta">PTA meeting</option><option value="circular">Circular</option>
+      </select>
+      <input id="ndetail" placeholder="detail (date / result / message)" style="flex:1;min-width:180px;padding:6px;border-radius:8px;background:#0b1020;color:var(--txt);border:1px solid var(--line)" />
+      <input id="nsection" placeholder="section (blank=all)" style="width:130px;padding:6px;border-radius:8px;background:#0b1020;color:var(--txt);border:1px solid var(--line)" />
+      <button onclick="broadcast()" style="background:var(--ok);color:#04101f;border:0;border-radius:8px;padding:6px 14px;cursor:pointer;font-weight:700">Send</button>
+    </div>
+    <div id="notifyResult" style="font-size:13px;margin-top:8px"></div>
+  </div>
 
 <script>
 async function load() {
-  const d = await fetch('/api/crm').then(r => r.json()).catch(() => null);
+  const [d, f] = await Promise.all([
+    fetch('/api/crm').then(r => r.json()).catch(() => null),
+    fetch('/api/funnel').then(r => r.json()).catch(() => ({})),
+  ]);
   if (!d) { document.getElementById('sub').textContent = 'Server unreachable.'; return; }
   const s = d.stats;
   document.getElementById('sub').textContent = `${s.totalLeads} leads · ${s.totalCalls} calls · updated ${new Date().toLocaleTimeString()}`;
+  // Funnel (M9): enquiry → contacted → conversation → visit → admitted
   document.getElementById('cards').innerHTML = [
-    ['Leads', s.totalLeads], ['Hot', s.hot], ['Warm', s.warm], ['Cold', s.cold], ['Visits booked', s.visitsBooked],
+    ['Enquiries', f.enquiries ?? s.totalLeads], ['Contacted', f.contacted ?? 0], ['Conversations', f.conversations ?? s.totalCalls],
+    ['Hot', s.hot], ['Visits', f.visitsBooked ?? s.visitsBooked], ['Admitted', f.admitted ?? 0],
   ].map(([l,n]) => `<div class="card"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
   const rows = d.leads.map(l => `<tr>
     <td><b>${l.parentName||'—'}</b><br><span class="muted">${l.studentName||''}${l.area?' · '+l.area:''}</span></td>
     <td>${l.interestStream||'—'}</td>
     <td><span class="pill ${l.interest||'unknown'}">${l.interest||'—'}</span></td>
     <td>${l.appointment&&l.appointment.booked ? '<span class="book">✓ '+(l.appointment.when||'booked')+'</span>' : '<span class="muted">—</span>'}</td>
+    <td><button onclick="showDocs('${l.id}','${(l.parentName||'').replace(/'/g,'')}')" style="background:#2a3150;color:var(--txt);border:0;border-radius:6px;padding:3px 9px;cursor:pointer">📄</button></td>
     <td>${l.calls||0}</td>
     <td class="muted">${l.nextAction||''}</td>
   </tr>`).join('');
-  document.getElementById('rows').innerHTML = rows || '<tr><td colspan="6" class="empty">No leads yet — complete a call to see it here.</td></tr>';
+  document.getElementById('rows').innerHTML = rows || '<tr><td colspan="7" class="empty">No leads yet — complete a call to see it here.</td></tr>';
 }
 load();
+
+// Dept 6: document checklist — view + mark received (humans verify, no OCR).
+async function showDocs(leadId, name) {
+  const st = await fetch('/api/documents?leadId=' + encodeURIComponent(leadId)).then(r => r.json());
+  const lines = st.map(d => `${d.received ? '✅' : '⬜'} ${d.doc}`).join('\n');
+  const toMark = prompt(`Documents for ${name}:\n\n${lines}\n\nType the EXACT document name to toggle received, or Cancel.`, '');
+  if (!toMark) return;
+  const doc = st.find(d => d.doc.toLowerCase() === toMark.trim().toLowerCase());
+  if (!doc) { alert('No matching document name.'); return; }
+  await fetch('/api/documents/mark', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ leadId, doc: doc.doc, received: !doc.received }) });
+  alert(`${doc.doc} → ${!doc.received ? 'received' : 'not received'}`);
+}
+
+// Dept 12: roster import + broadcast
+async function importRoster() {
+  const f = document.getElementById('rosterFile').files[0];
+  const info = document.getElementById('rosterInfo');
+  if (!f) { info.textContent = 'Choose a roster CSV.'; return; }
+  const csv = await f.text();
+  const r = await fetch('/api/roster/import', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ csv }) }).then(x=>x.json());
+  info.textContent = r.error ? ('✗ ' + r.error) : `✓ ${r.added} students in roster`;
+  load();
+}
+async function broadcast() {
+  const type = document.getElementById('ntype').value;
+  const detail = document.getElementById('ndetail').value.trim();
+  const section = document.getElementById('nsection').value.trim();
+  const out = document.getElementById('notifyResult');
+  out.textContent = 'Queuing…';
+  const r = await fetch('/api/notify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type, detail, filter: section ? { section } : {} }) }).then(x=>x.json());
+  out.innerHTML = `<span class="book">✓ queued ${r.queued} message(s)</span> to ${r.matched} matched parent(s) — sending on the next scheduler tick.`;
+}
 
 // M2: read the chosen CSV and send it for validation + import; show per-row verdicts.
 async function importCsv() {

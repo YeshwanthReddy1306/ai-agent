@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Enquire — Resonance Hyderabad</title>
+<style>
+  :root{--bg:#0b1020;--card:#141b33;--line:#242c4a;--txt:#e8ecfb;--mut:#8b93b7;--ok:#3ddc84;--acc:#4aa3ff}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.5 system-ui,Segoe UI,Roboto,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px;max-width:420px;width:100%}
+  h1{margin:0 0 4px;font-size:22px} .sub{color:var(--mut);margin-bottom:18px;font-size:14px}
+  label{display:block;font-size:13px;color:var(--mut);margin:12px 0 4px}
+  input,select{width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--line);background:#0b1020;color:var(--txt);font-size:15px}
+  button{width:100%;margin-top:18px;background:var(--acc);color:#04101f;border:0;border-radius:10px;padding:12px;font-weight:700;font-size:16px;cursor:pointer}
+  .msg{margin-top:14px;text-align:center;font-size:15px} .ok{color:var(--ok)}
+  .row{display:flex;gap:10px} .row>div{flex:1}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Admissions Enquiry</h1>
+    <div class="sub">Resonance Hyderabad — IIT-JEE / NEET integrated intermediate. We'll call you within minutes.</div>
+    <label>Parent name *</label><input id="parentName" placeholder="Your name" />
+    <label>Phone number *</label><input id="phone" placeholder="10-digit mobile" inputmode="numeric" />
+    <label>Student name</label><input id="studentName" placeholder="Your child's name" />
+    <div class="row">
+      <div><label>Stream</label>
+        <select id="interest"><option value="MPC + IIT-JEE">MPC + IIT-JEE</option><option value="BiPC + NEET">BiPC + NEET</option><option value="Not sure yet">Not sure yet</option></select></div>
+      <div><label>Language</label>
+        <select id="language"><option value="te">Telugu</option><option value="hi">Hindi</option><option value="en">English</option></select></div>
+    </div>
+    <label>Area</label><input id="area" placeholder="e.g. Kukatpally" />
+    <button onclick="submit()">Request a callback</button>
+    <div id="msg" class="msg"></div>
+  </div>
+<script>
+async function submit(){
+  const g=id=>document.getElementById(id).value.trim();
+  const body={parentName:g('parentName'),phone:g('phone'),studentName:g('studentName'),interest:g('interest'),language:g('language'),area:g('area')};
+  const m=document.getElementById('msg');
+  if(!body.parentName||!body.phone){m.textContent='Please enter your name and phone.';return;}
+  m.textContent='Submitting…';
+  try{
+    const r=await fetch('/api/enquiry',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(x=>x.json());
+    m.className='msg '+(r.ok?'ok':''); m.textContent=r.message;
+    if(r.ok) document.querySelector('button').disabled=true;
+  }catch(e){m.textContent='Something went wrong — please call us directly.';}
+}
+</script>
+</body>
+</html>
