@@ -84,6 +84,11 @@ Preflight green, 3 rehearsal calls per language reviewed, Sarvam credits confirm
 
 Curated verified facts DB (college.json) → sanitizer (unknown = "office will confirm") → on-demand fact injection (deterministic, no retrieval errors) → deterministic number-speaking → 16-question golden suite (invented-number detector) → edge-case capture → human answers → DB grows only through verification. Final product: OCR/RAG feeds the DB **at ingestion with human approval**, never a live call. Facts freshness gate (30-day warning) already enforced by preflight.
 
+## LOCKED infrastructure decisions (2026-07-07)
+- **Host: AWS Lightsail, Mumbai.** Fixed price, AWS-grade uptime, one-click scale 5→15→30, AWS growth path for multi-college. Sizing/cost: 2GB ~₹800 (5-member) · 4GB ~₹1,400 (MVP) · 8GB+ ~₹6,000 (final). Chosen over Hostinger (the ~₹400/mo saving is the wrong economy on a revenue-critical admission-season system). Free Oracle tier = dev/pilot ONLY, never production.
+- **Orchestration: own Node bridge + Sarvam streaming WebSockets** (built-in VAD/turn-detection) — NOT LiveKit Cloud (~₹1.5/min would blow budget), NOT a self-hosted LiveKit server (needless infra + margin squeeze). Same Sarvam models streamed = zero voice change.
+- **Telephony: FreJun Teler** (raw pipe, bring-your-own Sarvam) — cheapest Indian rates; NEVER a bundled AI platform (Telnyx/Vapi would replace Simran/Sarvam and destroy the product).
+
 ## G5 cost-attack plan (telephony research 2026-07-06)
 
 | Lever | Finding | Status |
