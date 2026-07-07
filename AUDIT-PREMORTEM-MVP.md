@@ -98,4 +98,44 @@ Ranked by (likelihood × damage). ✅ mitigated · ⚠️ owner-action · 🛠 b
 8. The historical bar: 10 real Telugu parents, ≥8 say "couldn't tell it wasn't human."
 
 ## Honest verdict
-The **software** for both tiers is built, tested, and clears the half-cost goal on estimate. Nothing blocking is a *code* gap — every remaining CRITICAL/HIGH item is an **owner action** (vendor quotes, compliance registration, keys, a real host) or the **known phone-quality ceiling** that the post-contract LiveKit rebuild is designed to fix. The pilot is gated by paperwork and accounts, not by engineering.
+The **software** for both tiers is built, tested, and clears the half-cost goal on estimate. Nothing blocking is a *code* gap — every remaining CRITICAL/HIGH item is an **owner action** (vendor quotes, compliance registration, keys, a real host) or the **known phone-quality ceiling** that the streaming upgrade is designed to fix. The pilot is gated by paperwork and accounts, not by engineering.
+
+---
+
+# PART 3 — PRODUCTION READINESS (dev-free vs paid-production)
+
+## 3A. Two different environments — don't confuse their costs
+
+| | Dev / pilot (our build & testing) | Production (live at the college) |
+|---|---|---|
+| Host | **Oracle Always Free** ARM VM, Mumbai (₹0) or this laptop | **Cheap paid Indian VPS with SLA** (~₹800–2,000/mo) — free tiers have NO uptime guarantee and can be reclaimed; a paying college in admission season cannot risk that |
+| Tunnel/URL | ephemeral quick-tunnel | **stable domain + fixed number** |
+| Cost line | ~₹0 | already inside the quoted infra line (₹2–8k) — **projection does NOT change** |
+
+**Key point:** the free tier saves money *while building*; production runs on a proper (still cheap) host that was already budgeted. The per-minute bulk (FreJun + Sarvam) is **identical** in both — usage is usage.
+
+## 3B. Does the tier cost hold live at the college? Yes — with one dependency
+
+- **Telephony + Sarvam (the bulk):** identical — ₹0.15/min is ₹0.15/min in test or production.
+- **Server + channels (fixed):** budgeted with a real paid box.
+- **The one variable = real call volume.** Cost scales proportionally with minutes talked. So the tier cost holds **only if we size the tier to Resonance's actual volume** → this is why "real lead/call volume" is a required kickoff number. Price the tier to reality, not assumption.
+
+## 3C. Reliability checklist (make it WORK, not just cost right) — mostly one-time
+
+- [ ] Reliable paid host (SLA) + **auto-restart on crash** (systemd/pm2) + **uptime alert** to the owner.
+- [ ] **Stable phone number + 160-series/DLT registration** (not the ephemeral tunnel).
+- [ ] **Graceful degradation** on a Sarvam/FreJun blip — already have retry-once + TTS→text fallback; confirm it holds under a real outage.
+- [ ] **Daily data backup** (crm/ops/followups/students JSON) off the box.
+- [ ] **Facts freshness** — fees/dates re-verified each season (edge-case loop handles the long tail; preflight warns at 30 days).
+- [ ] Secrets in a proper store, keys rotated (the chat-pasted ones).
+- [ ] Basic **monitoring dashboard** (calls today, failures, credit balance).
+
+## 3D. The maintenance model (the owner's real question)
+
+**Set up ONCE, then a few hours/month.** This is accurate for the run-cost and for a hardened single-college deployment, IF the one-time hardening (3C) is done first. Honest breakdown:
+
+- **One-time:** deploy to the paid host, register the DLT number, wire real keys (WhatsApp/counselor/gateway), 3 rehearsal calls/language, load real leads. Days, not weeks.
+- **Monthly (a few hours):** top up Sarvam/telephony credits, glance at the monitoring dashboard, answer any new edge-case questions into `college.json`, refresh facts if fees/dates changed that month. That's it — the system runs itself between touches (auto-restart, auto-CRM, auto-follow-ups, auto-reminders).
+- **What would break the "few hours/month" promise:** (a) skipping the reliability hardening in 3C (then you firefight outages), (b) scaling to *many* colleges without a support person (per-college minutes are cheap, but 20 colleges' worth of monitoring/edge-cases exceeds a few hours — that's when the final product needs an ops hire), (c) a season fees/data change nobody loads (the agent then defers correctly, but conversions suffer).
+
+**Verdict:** for the 5-member and MVP (single college), "set up once + a few hours/month" is a **realistic promise** — *conditional on doing the one-time production hardening in 3C.* The cash cost holds; the monthly *time* is genuinely small because the system is built to self-run (auto-restart, atomic stores, scheduler, hot-reload). It is NOT a promise that survives silently skipping the hardening or scaling to a fleet without ops support.
