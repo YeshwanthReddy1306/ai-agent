@@ -25,11 +25,15 @@ FreJun is the shot; Exotel is insurance you buy only if the shot misses.
 - Support: +91 80356 21212 / +91 80353 01939
 - Office: FreJun India Pvt Ltd, Andheri East, Mumbai
 
-**The 4 questions that decide everything (ask on the call, confirm by email):**
-1. Does the **₹1,349/user unlimited-India plan cover automated / API-driven calls from an AI voice agent** (not a human dialing)? Or is unlimited only for human-agent seats?
-2. For AI-agent traffic, what is the **Teler API real per-minute rate for India** (a blog cited $0.15/min ≈ ₹13 — confirm the true INR number)?
-3. **Concurrency:** how many simultaneous calls per user/plan? We need 8 (5-member tier) / 20 (15-member) / 40 (30-member) parallel calls.
-4. **Compliance:** do you provide a **160-series / DLT-registered** number for service/transactional calls to existing enquiries, and do you handle the PE-TM registration?
+**ANSWERED by FreJun's own published pages (2026-07-07):**
+- ❌ The ₹1,349/₹1,699 unlimited plans **exclude API/automated calling** ([India plans](https://knowledge.frejun.com/frejun-india-plans-and-pricing)) — so we use **Teler**, not unlimited.
+- ✅ **Teler India, telephony-only (BYO Sarvam)** ([Teler pricing](https://www.frejun.ai/pricing-page/)): outbound ₹0.15/min · inbound ₹0.10/min · **media streaming ₹0.15/min** · channel ₹600/mo · **10-channel minimum** for production · 3 numbers/channel included · recording ₹0.04/min · testing credits on first upgrade.
+
+**The 4 questions that REMAIN (confirm on the call — one of them decides the whole telephony cost):**
+1. **THE money question:** does **media streaming (₹0.15/min) stack ON TOP of** the ₹0.15 outbound rate for every connected AI-agent minute (=₹0.30/min), or is it included (=₹0.15/min)?
+2. The **10-channel minimum** = ₹6,000/mo base floor, correct? And is that the only fixed cost?
+3. How much **testing credit** on first upgrade?
+4. **Compliance:** do you provide a **160-series / DLT-registered** number for service/transactional calls, and handle PE-TM registration?
 
 **Email draft (paste, fill [ ]):**
 > Subject: AI voice-agent telephony — does unlimited-India cover API traffic? (volume: ~[X] min/mo)
