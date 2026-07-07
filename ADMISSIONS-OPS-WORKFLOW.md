@@ -91,29 +91,36 @@ Lead arrives → AI responds within SECONDS (voice call or WhatsApp)
 
 ---
 
-# Economics (owner's fixed rules: nominal salaries only; hybrid keeps exactly ONE human)
+# Economics (HONEST run-cost — 2026-07-07, real FreJun/Sarvam rates, owner's rules: nominal salaries, hybrid = 1 human)
 
-## Monthly comparison — 15-member team vs MVP
+## How cost is actually driven (read this first)
+"200 calls/member/day" = **200 DIALS**, not 200 conversations. Unanswered/short dials cost ≈ ₹0 (you pay only for connected minutes). The cost driver is **connected conversation minutes**, which ≈ the human team's *actual talk output* (~180 real-talk-min/member/day; the rest of the shift is dialing, no-answers, data entry). The system makes all the dials AND can hold far more conversations than humans — see "Two operating points" below.
 
-| | College pays / month | Saves vs ₹2.25L | Per year |
+Per-connected-minute ≈ **₹1.10–1.25** all-in (telephony ₹0.15–0.30 + TTS ~₹0.64 cached + STT ₹0.25 + LLM ₹0.05). One 7-min call ≈ **₹8–11**.
+
+## Monthly run-cost at "match human output" (~180 talk-min/member/day × 26)
+
+| | 5-member | MVP 15-member | Final 30-member |
 |---|---|---|---|
-| Human team (15 × ₹15k) | ₹2,25,000 | — | — |
-| **MVP, full replace** @ ₹1,00,000 | ₹1,00,000 | **₹1,25,000 (56%)** | ₹15,00,000 |
-| **MVP hybrid** (system ₹1L + 1 human ₹15k) | ₹1,15,000 | **₹1,10,000 (49%)** | ₹13,20,000 |
+| Connected talk-min/mo | ~23,400 | ~70,200 | ~1,40,400 |
+| Variable (₹~1.2/min) | ~₹28,000 | ~₹84,000 | ~₹1,68,000 |
+| Fixed: FreJun channels (₹600×[10/20/40]) + AWS Lightsail Mumbai host (₹0.8k/1.4k/6k) + WhatsApp | ~₹8,300 | ~₹16,400 | ~₹32,000 |
+| **TOTAL run-cost** | **~₹36,000** | **~₹1,00,000** | **~₹2,00,000** |
+| **½-salary ceiling** | ₹37,500 | ₹1,12,500 | ₹2,25,000 |
+| **Verdict** | ⚠️ **razor-thin under** (10-ch min hurts at low volume) | ✅ ~10% margin | ✅ ~11% margin |
 
-Our estimated run cost behind the ₹1L price: ₹45–75k/mo at 200 calls/day, 7-min avg (Sarvam ₹26–42k **[ASK: real dashboard billing]**, Indian telephony ₹13–22k **[ASK: Exotel quote]**, WhatsApp/SMS ₹3–6k, infra ₹2–5k). Twilio is testing-only; at scale its ~₹2.5–3.5/min triples telephony cost.
+**Honest note:** earlier "5-member ~₹16–21k" was too optimistic. With real FreJun rates + honest volume the 5-member tier is **tight** — the FreJun 10-channel minimum (₹6k fixed) + real Sarvam TTS dominate at low volume. Levers to widen it: FreJun media-streaming NOT stacking (₹0.15 not ₹0.30), a channel minimum below 10 for small accounts, Sarvam TTS volume discount, WhatsApp-first substitution.
 
-**Telephony strategy (owner-locked 2026-07-06):** Twilio for dev/testing only → **Exotel for MVP + pilot** (Indian, TRAI-compliant, ~₹0.3–0.6/min) → **Jio SIP trunks at 10+ college scale**, when volume justifies the compliance/infra burden (enterprise trunk contracts, own session controller, PE-TM registration, 140-series numbering). Re-run the cost crossover at 3–5 colleges.
+**AWS Lightsail Mumbai host IS included** in the fixed line (₹800 / ₹1,400 / ₹6,000 by tier). Reliable, fixed-price, Mumbai region, one-click scale — chosen over Hostinger (cheaper but weaker uptime track record for a paying-college production system).
 
-## The 4-month comparison (one full admission season)
+## Two operating points (the choice, not a failure)
+1. **Match human output** → the table above (under half, tight at 5-member).
+2. **Unleash** (pursue every lead fully — parallel, tireless, instant response) → *more* connected minutes than humans could ever produce → costs more, but wins **more admissions**. Cost follows minutes: you can have "far more conversations than humans" OR "half their cost," not both at once. This is a lever the college chooses per their goal.
 
-| | 4-month cost to college | Saved vs human team | What they get |
-|---|---|---|---|
-| **Human team** (15 × ₹15k × 4) | **₹9,00,000** | — | 8h × 6d, quality varies, hours-long response, data-entry backlog |
-| **MVP** @ ₹1L/mo | **₹4,00,000** | **₹5,00,000 (56%)** | Depts 2,3,4,5,7,8,10,11 automated; 24/7; seconds-response; every call scored |
-| **Final product** @ ₹1.5L/mo | **₹6,00,000** | **₹3,00,000 (33%) vs the 15-member team** — but it covers the scope of the **30-member org (₹18L/4mo)**, against which it saves **₹12,00,000 (67%)** | Everything in MVP + inbound + OCR/documents + payments + multi-channel cadences + sub-second streaming voice + multi-college console |
+## Pricing is our choice inside the gap
+We charge inside the gap between run-cost and the buyer's ₹75k/₹2.25L/₹4.5L spend. e.g. charge ₹1L for the 15-member replacement → college saves ₹1.25L/mo, our margin ~₹0. Set the charge deliberately; run-cost above is the floor, not the price.
 
-Prices (₹1L / ₹1.5L) are **our pricing choices**, set inside the gap between our run cost and the buyer's current spend — presented as levers, never as facts.
+**Still pending to make these EXACT [ASK]:** FreJun (does media streaming stack? channel minimum? DLT number?), Sarvam volume/student credits, and Resonance's REAL calls/day + connect rate + salaries.
 
 ---
 
