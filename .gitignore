@@ -9,3 +9,5 @@ data/followups.json
 data/dnc.json
 scratch/
 *.bak
+
+data/dials.jsonl

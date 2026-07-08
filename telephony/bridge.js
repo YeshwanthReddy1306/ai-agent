@@ -42,6 +42,7 @@ const scheduler = require('../lib/scheduler');
 const dnc = require('../lib/dnc');
 const leadsStore = require('../lib/leads'); // shared, hot-reloading lead store (M2/M3)
 const { alertTeam, isTransferRequest } = require('../lib/alerts'); // M5 alerts + live-transfer detection
+const besttime = require('../lib/besttime'); // dial-outcome analytics + smart retry slots
 
 // callSid -> live CallSession, so out-of-band webhooks (voicemail AMD, transfer) can reach
 // the right in-flight call.
@@ -57,6 +58,13 @@ async function twilioUpdateCall(callSid, twiml) {
   });
   return { ok: r.ok, reason: r.ok ? '' : `twilio ${r.status}` };
 }
+
+// Idle/silence handling (competitor-parity): gently re-prompt a quiet caller, then let go warmly.
+const IDLE_LINES = {
+  'te-IN': { first: 'హలో, వినిపిస్తోందా అండి?', second: 'ఒక్క నిమిషం ఆగుతా అండి, మీరు చెప్పండి.', bye: 'సరే అండి, తర్వాత మాట్లాడదాం. మీ అబ్బాయికి మంచి జరగాలి, ఉంటాను అండి!' },
+  'hi-IN': { first: 'हैलो, आप सुन रहे हैं जी?', second: 'मैं एक पल रुकती हूँ, आप बताइए।', bye: 'ठीक है जी, फिर बात करते हैं। आपका दिन शुभ हो!' },
+  'en-IN': { first: 'Hello, are you still there?', second: 'I will wait just a moment — please go ahead.', bye: 'No problem, we will talk later. You take care!' },
+};
 
 // Short courtesy lines for a live transfer (NOT persona scripts — one-line handoffs, per language).
 const TRANSFER_LINE = {
@@ -126,6 +134,9 @@ class CallSession {
     this.callSid = null;
     this.isVoicemail = false; // AMD flagged an answering machine — stop, don't pitch to a recording
     this.transferred = false; // handed to a human — stop the agent pipeline
+    this.lastActiveAt = Date.now(); // last time the caller spoke OR the agent finished speaking
+    this.idleCount = 0; // consecutive silence prompts (3 = give up gracefully)
+    this.handlingIdle = false;
   }
 
   get stopped() { return this.isVoicemail || this.transferred; }
@@ -163,6 +174,7 @@ class CallSession {
     this.streamSid = msg.start.streamSid;
     this.callSid = msg.start.callSid;
     if (this.callSid) sessionsByCallSid.set(this.callSid, this); // for voicemail/transfer webhooks
+    if (!this.inbound) besttime.logDial('connected'); // the stream opened → the call was answered
     const greeting = greetingFor(this.lead, { inbound: this.inbound });
     this.lastLang = greeting.lang;
     this.messages.push({ role: 'assistant', content: greeting.text });
@@ -193,11 +205,21 @@ class CallSession {
       this.silentMs = 0;
       if (!this.speaking && this.speechMs > startAt) {
         this.speaking = true;
+        this.idleCount = 0; // caller is engaged again — reset the silence counter
         this.bargeIn(); // caller genuinely talked over the agent — stop agent audio
       }
     } else {
       this.silentMs += frameMs;
       this.speechMs = 0;
+    }
+
+    // Idle/silence handling: it's the caller's turn (agent finished, pipeline free) but
+    // they've gone quiet for too long — gently re-prompt, then let go after a few tries.
+    const IDLE_MS = Number(process.env.IDLE_MS) || 9000;
+    if (!this.busy && !this.sending && !this.speaking && !this.handlingIdle && !this.stopped
+        && Date.now() - this.lastActiveAt > IDLE_MS) {
+      this.handlingIdle = true;
+      this.onIdle().catch((e) => console.error('idle failed:', e.message)).finally(() => { this.handlingIdle = false; });
     }
     if (this.speaking) this.pcm.push(pcm);
 
@@ -226,6 +248,7 @@ class CallSession {
       const stt = await sttTranscribe(pcmToWav(merged), 'unknown');
       const userText = (stt.transcript || '').trim();
       if (!userText) return;
+      this.idleCount = 0; // a real turn — the caller is engaged
       console.log(`[caller] ${userText}`);
       this.messages.push({ role: 'user', content: userText });
       // DNC: if the parent asks not to be called again, honor it — suppress the number so
@@ -262,11 +285,32 @@ class CallSession {
     }
   }
 
+  // Agent finished speaking (Twilio played our marked audio) — the caller's turn starts now,
+  // so reset the idle clock from this moment.
+  onMarkDone() { this.sending = false; this.lastActiveAt = Date.now(); }
+
+  // Caller went quiet on their turn: prompt once, twice, then let go warmly on the third.
+  async onIdle() {
+    if (this.busy || this.stopped) return;
+    this.idleCount += 1;
+    const L = IDLE_LINES[this.personaLang] || IDLE_LINES['en-IN'];
+    if (this.idleCount >= 3) {
+      console.log(`[bridge] caller idle x3 — ending call warmly (${this.lead.parentName})`);
+      await this.speak(L.bye, this.personaLang, 'warm');
+      await twilioUpdateCall(this.callSid, '<Response><Hangup/></Response>').catch(() => {});
+    } else {
+      console.log(`[bridge] caller idle (${this.idleCount}) — gentle re-prompt`);
+      await this.speak(this.idleCount === 1 ? L.first : L.second, this.personaLang, 'warm');
+      this.lastActiveAt = Date.now(); // restart the idle clock after prompting
+    }
+  }
+
   // VOICEMAIL (Twilio AMD flagged an answering machine): don't waste a full pitch + minutes
   // on a recording. Hang up immediately and queue a retry the same way a missed call is.
   async onVoicemail() {
     if (this.stopped) return;
     this.isVoicemail = true;
+    besttime.logDial('voicemail');
     console.log(`[bridge] voicemail detected for ${this.lead.parentName} — hanging up (no pitch to a recording)`);
     await twilioUpdateCall(this.callSid, '<Response><Hangup/></Response>').catch(() => {});
     // finalize() (fired on the resulting stop) sees isVoicemail and queues the retry.
@@ -375,7 +419,8 @@ function scheduleMissed(lead) {
     scheduler.schedule({ ...base, type: 'missed_call_message', dueAt: new Date(Date.now() + 10 * 60000).toISOString(), channel: 'whatsapp',
       message: `Namaste ${lead.parentName}, this is ${college.agentName} from ${college.name} — we tried to reach you about ${lead.studentName}. Reply here, or we will call again at a better time.` });
   } else {
-    scheduler.schedule({ ...base, type: 'missed_call_retry', dueAt: new Date(Date.now() + 4 * 3600000).toISOString(), channel: 'call',
+    // Smart retry: schedule the retry at the next high-connect-rate hour, not a blind +4h.
+    scheduler.schedule({ ...base, type: 'missed_call_retry', dueAt: besttime.nextGoodSlot(), channel: 'call',
       message: `Retry call: ${lead.parentName} (${lead.studentName}) — no answer.` });
   }
   console.log(`[bridge] missed dial — ${engaged ? 'message' : 'voice retry'} queued for ${lead.parentName}`);
@@ -426,7 +471,10 @@ const server = http.createServer((req, res) => {
       const status = (form.CallStatus || '').toLowerCase();
       const leadId = new URL(req.url, 'http://x').searchParams.get('leadId');
       const lead = leadsStore.byId(leadId);
-      if (lead && ['no-answer', 'busy', 'failed', 'canceled'].includes(status)) scheduleMissed(lead);
+      if (['no-answer', 'busy', 'failed', 'canceled'].includes(status)) {
+        besttime.logDial('no_answer');
+        if (lead) scheduleMissed(lead);
+      }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end('{"ok":true}');
     });
@@ -518,6 +566,7 @@ wss.on('connection', (ws, req) => {
     try { msg = JSON.parse(data); } catch { return; }
     if (msg.event === 'start') session.onStart(msg).catch((e) => console.error(e.message));
     else if (msg.event === 'media') session.onMedia(msg.media.payload);
+    else if (msg.event === 'mark') session.onMarkDone();
     else if (msg.event === 'stop') { console.log('call ended by Twilio'); session.finalize(); if (session.callSid) sessionsByCallSid.delete(session.callSid); }
   });
   ws.on('close', () => { if (session.callSid) sessionsByCallSid.delete(session.callSid); });

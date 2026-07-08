@@ -230,6 +230,11 @@ async function handleApi(req, res, url, body) {
     return json(res, 200, { ok: true, ...r });
   }
 
+  // ---- Best-time-to-call analytics ----
+  if (req.method === 'GET' && url.pathname === '/api/besttime') {
+    return json(res, 200, require('./lib/besttime').stats());
+  }
+
   // ---- M9: funnel ----
   if (req.method === 'GET' && url.pathname === '/api/funnel') {
     const leadRows = crm.listLeads();

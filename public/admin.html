@@ -67,6 +67,13 @@
     <div id="notifyResult" style="font-size:13px;margin-top:8px"></div>
   </div>
 
+  <!-- Best time to call (connect-rate by hour) -->
+  <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-top:24px">
+    <b>Best time to call</b> <span id="btSamples" class="muted" style="font-size:13px"></span>
+    <div class="muted" style="font-size:13px;margin:4px 0 10px">Connect-rate by hour — smart retries target the greenest slots. Fills in as calls happen; uses research defaults (4–5 PM, 10–11 AM) until then.</div>
+    <div id="btGrid" style="display:flex;gap:3px;align-items:flex-end;height:90px"></div>
+  </div>
+
 <script>
 async function load() {
   const [d, f] = await Promise.all([
@@ -93,6 +100,23 @@ async function load() {
   document.getElementById('rows').innerHTML = rows || '<tr><td colspan="7" class="empty">No leads yet — complete a call to see it here.</td></tr>';
 }
 load();
+loadBestTime();
+
+// Best time to call — connect-rate bars by hour (working hours 8–21 shown).
+async function loadBestTime() {
+  const d = await fetch('/api/besttime').then(r => r.json()).catch(() => null);
+  if (!d) return;
+  document.getElementById('btSamples').textContent = `(${d.samples} dials logged)`;
+  const cell = (h) => {
+    const rate = h.connectRate;
+    const ht = rate == null ? 4 : Math.max(4, rate * 0.8);
+    const col = rate == null ? '#2a3150' : rate >= 50 ? 'var(--ok)' : rate >= 25 ? 'var(--warm)' : 'var(--hot)';
+    return `<div style="flex:1;text-align:center">
+      <div title="${rate == null ? 'no data' : rate + '% connect'}" style="height:${ht}px;background:${col};border-radius:3px 3px 0 0"></div>
+      <div class="muted" style="font-size:9px;margin-top:2px">${h.hour}</div></div>`;
+  };
+  document.getElementById('btGrid').innerHTML = d.hours.filter(h => h.hour >= 8 && h.hour <= 21).map(cell).join('');
+}
 
 // Dept 6: document checklist — view + mark received (humans verify, no OCR).
 async function showDocs(leadId, name) {
