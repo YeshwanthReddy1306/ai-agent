@@ -41,7 +41,29 @@ const crm = require('../lib/crm');
 const scheduler = require('../lib/scheduler');
 const dnc = require('../lib/dnc');
 const leadsStore = require('../lib/leads'); // shared, hot-reloading lead store (M2/M3)
-const { alertTeam } = require('../lib/alerts'); // M5: instant counselor ping on hot/booked/inbound-unknown
+const { alertTeam, isTransferRequest } = require('../lib/alerts'); // M5 alerts + live-transfer detection
+
+// callSid -> live CallSession, so out-of-band webhooks (voicemail AMD, transfer) can reach
+// the right in-flight call.
+const sessionsByCallSid = new Map();
+
+// Update a live Twilio call with new TwiML (used to hang up on voicemail, or dial a human).
+async function twilioUpdateCall(callSid, twiml) {
+  if (!SID || !TOKEN || !callSid) return { ok: false, reason: 'missing creds/callSid' };
+  const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${SID}/Calls/${callSid}.json`, {
+    method: 'POST',
+    headers: { Authorization: 'Basic ' + Buffer.from(`${SID}:${TOKEN}`).toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ Twiml: twiml }),
+  });
+  return { ok: r.ok, reason: r.ok ? '' : `twilio ${r.status}` };
+}
+
+// Short courtesy lines for a live transfer (NOT persona scripts — one-line handoffs, per language).
+const TRANSFER_LINE = {
+  'te-IN': 'ఒక్క నిమిషం అండి, మా సీనియర్ కౌన్సెలర్ కి కనెక్ట్ చేస్తున్నా — వాళ్ళు మీకు హెల్ప్ చేస్తారు.',
+  'hi-IN': 'एक मिनट जी, मैं आपको हमारे सीनियर काउंसलर से कनेक्ट कर रही हूँ — वो आपकी पूरी मदद करेंगे।',
+  'en-IN': 'One moment — I am connecting you to our senior counselor who will help you further.',
+};
 
 const PORT = Number(process.env.TELEPHONY_PORT) || 3200;
 const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/$/, ''); // e.g. https://abc.ngrok.app
@@ -101,7 +123,12 @@ class CallSession {
     this.silentMs = 0;
     this.busy = false; // pipeline in flight
     this.sending = false; // agent audio going out (for barge-in)
+    this.callSid = null;
+    this.isVoicemail = false; // AMD flagged an answering machine — stop, don't pitch to a recording
+    this.transferred = false; // handed to a human — stop the agent pipeline
   }
+
+  get stopped() { return this.isVoicemail || this.transferred; }
 
   sendAudio(mulawBuf) {
     this.sending = true;
@@ -134,6 +161,8 @@ class CallSession {
 
   async onStart(msg) {
     this.streamSid = msg.start.streamSid;
+    this.callSid = msg.start.callSid;
+    if (this.callSid) sessionsByCallSid.set(this.callSid, this); // for voicemail/transfer webhooks
     const greeting = greetingFor(this.lead, { inbound: this.inbound });
     this.lastLang = greeting.lang;
     this.messages.push({ role: 'assistant', content: greeting.text });
@@ -145,6 +174,7 @@ class CallSession {
   }
 
   onMedia(payloadB64) {
+    if (this.stopped) return; // voicemail or transferred — ignore inbound audio
     const pcm = mulawToPcm(Buffer.from(payloadB64, 'base64'));
     const frameMs = (pcm.length / 8000) * 1000; // Twilio sends 20ms frames
     let sum = 0;
@@ -183,6 +213,7 @@ class CallSession {
   }
 
   async turn(frames) {
+    if (this.stopped) return;
     this.busy = true;
     try {
       const merged = new Int16Array(frames.reduce((n, f) => n + f.length, 0));
@@ -202,6 +233,8 @@ class CallSession {
       if (dnc.isDncRequest(userText) && dnc.add(this.lead.phone, 'said do-not-call on call')) {
         console.log(`[bridge] DNC: ${this.lead.phone} added — will not be dialled again`);
       }
+      // LIVE TRANSFER: parent explicitly asked for a human — hand off warmly, don't argue.
+      if (isTransferRequest(userText)) { await this.transferToHuman(); return; }
       // Mirror the caller's language. The FIRST switch is instant (threshold 1) so a
       // Telugu/Hindi parent is answered in their language from the very first substantive
       // turn; AFTER that we apply hysteresis (2 consecutive turns) so a single 8 kHz
@@ -229,6 +262,44 @@ class CallSession {
     }
   }
 
+  // VOICEMAIL (Twilio AMD flagged an answering machine): don't waste a full pitch + minutes
+  // on a recording. Hang up immediately and queue a retry the same way a missed call is.
+  async onVoicemail() {
+    if (this.stopped) return;
+    this.isVoicemail = true;
+    console.log(`[bridge] voicemail detected for ${this.lead.parentName} — hanging up (no pitch to a recording)`);
+    await twilioUpdateCall(this.callSid, '<Response><Hangup/></Response>').catch(() => {});
+    // finalize() (fired on the resulting stop) sees isVoicemail and queues the retry.
+  }
+
+  // LIVE TRANSFER to a human counselor. Announce briefly in the parent's language, fire the
+  // context alert so the counselor answers informed, then bridge the call to them. If no
+  // counselor line is configured, promise a fast callback and queue it (graceful fallback).
+  async transferToHuman() {
+    if (this.transferred) return;
+    this.transferred = true;
+    const counselor = process.env.COUNSELOR_PHONE || '';
+    const line = TRANSFER_LINE[this.personaLang] || TRANSFER_LINE['en-IN'];
+    if (/^\+\d{10,15}$/.test(counselor) && this.callSid) {
+      try { await alertTeam(this.lead, { interest: 'hot', summary: 'Parent asked to speak to a human — LIVE transfer in progress.', nextAction: 'Answer the transferred call now.', objections: [], appointment: { booked: false } }, 'phone-transfer'); } catch {}
+      await this.speak(line, this.personaLang, 'reassuring');
+      const r = await twilioUpdateCall(this.callSid, `<Response><Dial callerId="${FROM}"><Number>${counselor}</Number></Dial></Response>`);
+      console.log(r.ok ? `[bridge] LIVE-transferred ${this.lead.parentName} → counselor ${counselor}` : `[bridge] transfer failed (${r.reason}) — queuing callback`);
+      if (!r.ok) this.transferred = false; // let the fallback below run next time if it failed
+      if (r.ok) return;
+    }
+    // Fallback: no counselor number (placeholder) or transfer failed → promise a callback.
+    const cb = {
+      'te-IN': 'అలాగే అండి, మా సీనియర్ కౌన్సెలర్ మిమ్మల్ని కొద్ది సేపట్లో కాల్ చేస్తారు, తప్పకుండా.',
+      'hi-IN': 'ज़रूर जी, हमारे सीनियर काउंसलर आपको थोड़ी ही देर में कॉल करेंगे।',
+      'en-IN': 'Of course — our senior counselor will call you back very shortly.',
+    };
+    await this.speak(cb[this.personaLang] || cb['en-IN'], this.personaLang, 'reassuring').catch(() => {});
+    scheduler.schedule({ leadId: this.lead.id, parent: this.lead.parentName, phone: this.lead.phone, student: this.lead.studentName,
+      type: 'human_callback', dueAt: new Date().toISOString(), channel: 'call',
+      message: `URGENT: ${this.lead.parentName} asked for a human on the call — call back ASAP (no live counselor line was configured).` });
+  }
+
   // Called when Twilio ends the stream — same outcome pipeline as the web server (audit H1):
   // summarise -> CRM lead -> schedule follow-ups. Runs once.
   async finalize() {
@@ -240,7 +311,9 @@ class CallSession {
       // summarize air. Route by prior engagement: known/engaged family → WhatsApp/SMS
       // message; never-engaged lead → retry voice call later.
       const userTurns = this.messages.filter((m) => m.role === 'user').length;
-      if (!userTurns) {
+      // Voicemail counts as "no real conversation" even if the recording's greeting got
+      // transcribed as a user turn — route it to a retry, never summarize a machine.
+      if (!userTurns || this.isVoicemail) {
         const rec = crm.get(this.lead.id);
         const engaged = !!(rec && rec.calls > 0);
         const base = { leadId: this.lead.id, parent: this.lead.parentName, phone: this.lead.phone, student: this.lead.studentName };
@@ -251,7 +324,7 @@ class CallSession {
           scheduler.schedule({ ...base, type: 'missed_call_retry', dueAt: new Date(Date.now() + 4 * 3600000).toISOString(), channel: 'call',
             message: `Retry call: ${this.lead.parentName} (${this.lead.studentName}) did not answer / did not speak.` });
         }
-        console.log(`[bridge] no conversation — ${engaged ? 'WhatsApp/SMS follow-up queued' : 'voice retry queued'} for ${this.lead.parentName}`);
+        console.log(`[bridge] ${this.isVoicemail ? 'voicemail' : 'no conversation'} — ${engaged ? 'WhatsApp/SMS follow-up queued' : 'voice retry queued'} for ${this.lead.parentName}`);
         return;
       }
 
@@ -326,6 +399,22 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Voicemail (AMD) callback: Twilio reports human vs machine here, asynchronously, while
+  // the media stream is already live. On a machine, tell the matching session to hang up.
+  if (req.method === 'POST' && req.url.startsWith('/amd')) {
+    let raw = '';
+    req.on('data', (c) => (raw += c));
+    req.on('end', () => {
+      const form = parseForm(raw);
+      const answeredBy = (form.AnsweredBy || '').toLowerCase(); // human | machine_start | machine_end_* | fax | unknown
+      const s = sessionsByCallSid.get(form.CallSid);
+      if (s && /machine|fax/.test(answeredBy)) s.onVoicemail().catch((e) => console.error('[amd]', e.message));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+    return;
+  }
+
   // Missed-dial callback: Twilio reports outbound calls that never connected
   // (no-answer / busy / failed) — the media stream never opens for those, so the
   // follow-up must be queued here.
@@ -376,6 +465,12 @@ const server = http.createServer((req, res) => {
             // unanswered calls get their follow-up queued (they never open the stream).
             StatusCallback: `${PUBLIC_URL}/call-status?leadId=${encodeURIComponent(lead.id)}`,
             StatusCallbackEvent: 'completed',
+            // Voicemail detection (competitor-parity upgrade): Twilio's async answering-
+            // machine detection runs alongside the media stream and reports human vs machine
+            // to /amd — on a machine we hang up instead of pitching to a recording.
+            MachineDetection: 'Enable',
+            AsyncAmdStatusCallback: `${PUBLIC_URL}/amd`,
+            AsyncAmdStatusCallbackMethod: 'POST',
           }),
         });
         const j = await r.json();
@@ -423,8 +518,9 @@ wss.on('connection', (ws, req) => {
     try { msg = JSON.parse(data); } catch { return; }
     if (msg.event === 'start') session.onStart(msg).catch((e) => console.error(e.message));
     else if (msg.event === 'media') session.onMedia(msg.media.payload);
-    else if (msg.event === 'stop') { console.log('call ended by Twilio'); session.finalize(); }
+    else if (msg.event === 'stop') { console.log('call ended by Twilio'); session.finalize(); if (session.callSid) sessionsByCallSid.delete(session.callSid); }
   });
+  ws.on('close', () => { if (session.callSid) sessionsByCallSid.delete(session.callSid); });
 });
 
 server.listen(PORT, () => console.log(`Telephony bridge -> http://localhost:${PORT}  (POST /dial)`));
