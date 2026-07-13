@@ -11,3 +11,4 @@ scratch/
 *.bak
 
 data/dials.jsonl
+data/bookings.json

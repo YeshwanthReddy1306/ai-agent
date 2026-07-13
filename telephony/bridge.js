@@ -364,11 +364,11 @@ class CallSession {
         if (engaged) {
           scheduler.schedule({ ...base, type: 'missed_call_message', dueAt: new Date(Date.now() + 10 * 60000).toISOString(), channel: 'whatsapp',
             message: `Namaste ${this.lead.parentName}, this is ${college.agentName} from ${college.name} — we tried to reach you about ${this.lead.studentName}. Reply here, or we will call again at a better time.` });
+          console.log(`[bridge] ${this.isVoicemail ? 'voicemail' : 'no conversation'} — WhatsApp/SMS follow-up queued for ${this.lead.parentName}`);
         } else {
-          scheduler.schedule({ ...base, type: 'missed_call_retry', dueAt: new Date(Date.now() + 4 * 3600000).toISOString(), channel: 'call',
-            message: `Retry call: ${this.lead.parentName} (${this.lead.studentName}) did not answer / did not speak.` });
+          // Same dial cap as scheduleMissed — a voicemail/no-speak call still counts as a miss.
+          queueRetryOrGiveUp(this.lead, base, this.isVoicemail ? 'voicemail' : 'did not speak');
         }
-        console.log(`[bridge] ${this.isVoicemail ? 'voicemail' : 'no conversation'} — ${engaged ? 'WhatsApp/SMS follow-up queued' : 'voice retry queued'} for ${this.lead.parentName}`);
         return;
       }
 
@@ -411,6 +411,26 @@ const parseForm = (raw) => Object.fromEntries(new URLSearchParams(raw));
 
 // Missed-dial follow-up shared by /call-status (never connected) — same owner rule as
 // finalize: engaged family → WhatsApp/SMS; never-engaged → retry voice call.
+// Hard cap on how many times we re-dial a number that never connects. Without it a single
+// permanently-unreachable lead re-dials forever, burning telephony minutes with zero return.
+// (OmniDim caps bulk retries at 6 for exactly this reason.) Reset to 0 by a real conversation.
+const MAX_DIAL_ATTEMPTS = Number(process.env.MAX_DIAL_ATTEMPTS) || 6;
+
+// Queue a voice retry only if we're under the cap; past it, stop dialing and flag the number
+// once for a human to decide (never silently drop it). Returns true if a retry was queued.
+function queueRetryOrGiveUp(lead, base, reason) {
+  const n = crm.bumpDialAttempt(lead.id);
+  if (n > MAX_DIAL_ATTEMPTS) {
+    scheduler.schedule({ ...base, type: 'unreachable', dueAt: new Date().toISOString(), channel: 'call',
+      message: `UNREACHABLE: ${lead.parentName} (${lead.studentName}) — ${MAX_DIAL_ATTEMPTS} dials, never connected. Stop auto-dialing; a human should try another number/time.` });
+    console.log(`[bridge] dial cap hit (${MAX_DIAL_ATTEMPTS}) for ${lead.parentName} — giving up, flagged for human`);
+    return false;
+  }
+  scheduler.schedule({ ...base, type: 'missed_call_retry', dueAt: besttime.nextGoodSlot(), channel: 'call',
+    message: `Retry call ${n}/${MAX_DIAL_ATTEMPTS}: ${lead.parentName} (${lead.studentName}) — ${reason}.` });
+  return true;
+}
+
 function scheduleMissed(lead) {
   const rec = crm.get(lead.id);
   const engaged = !!(rec && rec.calls > 0);
@@ -418,12 +438,11 @@ function scheduleMissed(lead) {
   if (engaged) {
     scheduler.schedule({ ...base, type: 'missed_call_message', dueAt: new Date(Date.now() + 10 * 60000).toISOString(), channel: 'whatsapp',
       message: `Namaste ${lead.parentName}, this is ${college.agentName} from ${college.name} — we tried to reach you about ${lead.studentName}. Reply here, or we will call again at a better time.` });
+    console.log(`[bridge] missed dial — message queued for ${lead.parentName}`);
   } else {
-    // Smart retry: schedule the retry at the next high-connect-rate hour, not a blind +4h.
-    scheduler.schedule({ ...base, type: 'missed_call_retry', dueAt: besttime.nextGoodSlot(), channel: 'call',
-      message: `Retry call: ${lead.parentName} (${lead.studentName}) — no answer.` });
+    // Smart retry at the next high-connect-rate hour, but only under the dial cap.
+    queueRetryOrGiveUp(lead, base, 'no answer');
   }
-  console.log(`[bridge] missed dial — ${engaged ? 'message' : 'voice retry'} queued for ${lead.parentName}`);
 }
 
 const server = http.createServer((req, res) => {

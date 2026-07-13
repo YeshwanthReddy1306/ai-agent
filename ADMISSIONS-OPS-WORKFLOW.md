@@ -91,36 +91,67 @@ Lead arrives → AI responds within SECONDS (voice call or WhatsApp)
 
 ---
 
-# Economics (HONEST run-cost — 2026-07-07, real FreJun/Sarvam rates, owner's rules: nominal salaries, hybrid = 1 human)
+# Economics (HONEST run-cost — 2026-07-13, CONFIRMED FreJun Teler rates via email from Yash/Presales, real Sarvam rates, owner's rules: nominal salaries, hybrid = 1 human)
 
 ## How cost is actually driven (read this first)
 "200 calls/member/day" = **200 DIALS**, not 200 conversations. Unanswered/short dials cost ≈ ₹0 (you pay only for connected minutes). The cost driver is **connected conversation minutes**, which ≈ the human team's *actual talk output* (~180 real-talk-min/member/day; the rest of the shift is dialing, no-answers, data entry). The system makes all the dials AND can hold far more conversations than humans — see "Two operating points" below.
 
-Per-connected-minute ≈ **₹1.10–1.25** all-in (telephony ₹0.15–0.30 + TTS ~₹0.64 cached + STT ₹0.25 + LLM ₹0.05). One 7-min call ≈ **₹8–11**.
+**FreJun's open pricing question is now RESOLVED — unfavorably.** Their email lists Outbound (₹0.15/min) and Media Streaming (₹0.15/min) as separate line items, confirming streaming **DOES stack** on top of the outbound rate. This was the single biggest unresolved variable in the model; it lands at the pessimistic end of the old ₹0.15–0.30 range, not the optimistic end.
 
-## Monthly run-cost at "match human output" (~180 talk-min/member/day × 26)
+**Confirmed FreJun Teler rates (2026-07-13 email):**
+| Item | Rate |
+|---|---|
+| Channel | ₹600/channel/month (10-channel minimum to upgrade) |
+| Outbound calling | ₹0.15/min |
+| Inbound calling | ₹0.10/min |
+| Media streaming (to our own backend) | ₹0.15/min — **stacks on outbound**, confirmed |
+| Recording + storage | ₹0.04/min (optional — see lever below) |
+| Free tier | 1 channel, ₹100 credit, 1 number (dev/trial only) |
+
+Per-connected-outbound-minute telephony floor = ₹0.15 + ₹0.15 (stream) = **₹0.30/min**, or **₹0.34/min** if we keep call recording.
+
+Per-connected-minute all-in ≈ **₹1.24–1.28** (telephony ₹0.30–0.34 + TTS ~₹0.64 cached + STT ₹0.25 + LLM ₹0.05). One 7-min call ≈ **₹8.7–9.0**.
+
+*(Exotel was also quoted this week — ₹0.60/min outbound, ₹0.20/min inbound, ₹1.89L upfront for an 11-month term, and the quote never confirms real-time streaming to a custom backend. Ruled out: ~4x FreJun's rate and doesn't clearly support the core capability the whole architecture needs. FreJun Teler remains the vendor.)*
+
+## Monthly run-cost at "match human output" (~180 talk-min/member/day × 26), WITH call recording
 
 | | 5-member | MVP 15-member | Final 30-member |
 |---|---|---|---|
 | Connected talk-min/mo | ~23,400 | ~70,200 | ~1,40,400 |
-| Variable (₹~1.2/min) | ~₹28,000 | ~₹84,000 | ~₹1,68,000 |
+| Variable (₹1.28/min) | ~₹30,000 | ~₹89,900 | ~₹1,79,700 |
 | Fixed: FreJun channels (₹600×[10/20/40]) + AWS Lightsail Mumbai host (₹0.8k/1.4k/6k) + WhatsApp | ~₹8,300 | ~₹16,400 | ~₹32,000 |
-| **TOTAL run-cost** | **~₹36,000** | **~₹1,00,000** | **~₹2,00,000** |
+| **TOTAL run-cost** | **~₹38,300** | **~₹1,06,300** | **~₹2,11,700** |
 | **½-salary ceiling** | ₹37,500 | ₹1,12,500 | ₹2,25,000 |
-| **Verdict** | ⚠️ **razor-thin under** (10-ch min hurts at low volume) | ✅ ~10% margin | ✅ ~11% margin |
+| **Verdict** | ❌ **BREACHES ceiling** (+₹800, ~2%) | ✅ ~5.5% margin (was ~10%) | ✅ ~5.9% margin (was ~11%) |
 
-**Honest note:** earlier "5-member ~₹16–21k" was too optimistic. With real FreJun rates + honest volume the 5-member tier is **tight** — the FreJun 10-channel minimum (₹6k fixed) + real Sarvam TTS dominate at low volume. Levers to widen it: FreJun media-streaming NOT stacking (₹0.15 not ₹0.30), a channel minimum below 10 for small accounts, Sarvam TTS volume discount, WhatsApp-first substitution.
+## Same table WITHOUT call recording (₹1.24/min variable — drop the ₹0.04/min recording line)
+
+| | 5-member | MVP 15-member | Final 30-member |
+|---|---|---|---|
+| Variable (₹1.24/min) | ~₹29,000 | ~₹87,000 | ~₹1,74,100 |
+| **TOTAL run-cost** | **~₹37,300** | **~₹1,03,400** | **~₹2,06,100** |
+| **Verdict** | ⚠️ razor-thin under (~₹200 / 0.5% headroom) | ✅ ~8.1% margin | ✅ ~8.4% margin |
+
+**Honest note — this is a real downgrade from the last estimate, not a rounding change.** Confirming that streaming stacks (₹0.30/min, not the hoped-for ₹0.15/min) pushed every tier's variable cost up ~7%. The **5-member tier now fails the ceiling outright if we record calls**, and only survives razor-thin if we don't. MVP and Final tiers are still comfortably under, but margin roughly halved (10%→5.5%, 11%→5.9%).
+
+**Levers to fix the 5-member tier (pick one before quoting a 5-member deal):**
+1. **Drop call recording for the 5-member tier** — cheapest fix, gets to razor-thin-pass (~₹200 headroom). Recording stays on for MVP/Final where margin absorbs it.
+2. **Push back on FreJun's 10-channel minimum** — it's ₹6,000 fixed cost dominating a low-volume tier; ask if a smaller account gets a lower channel floor.
+3. **Sarvam TTS volume discount** — ask Sarvam directly; TTS is the single largest per-minute line (₹0.64 of ₹1.24–1.28).
+4. **WhatsApp-first substitution** — shift more of the workflow (reminders, document collection, brochures) off voice minutes entirely; already partly built in `lib/ops.js`/`lib/notify.js`.
+Do not quote a 5-member deal without applying at least lever #1.
 
 **AWS Lightsail Mumbai host IS included** in the fixed line (₹800 / ₹1,400 / ₹6,000 by tier). Reliable, fixed-price, Mumbai region, one-click scale — chosen over Hostinger (cheaper but weaker uptime track record for a paying-college production system).
 
 ## Two operating points (the choice, not a failure)
-1. **Match human output** → the table above (under half, tight at 5-member).
+1. **Match human output** → the table above (under half for MVP/Final; 5-member needs lever #1 applied).
 2. **Unleash** (pursue every lead fully — parallel, tireless, instant response) → *more* connected minutes than humans could ever produce → costs more, but wins **more admissions**. Cost follows minutes: you can have "far more conversations than humans" OR "half their cost," not both at once. This is a lever the college chooses per their goal.
 
 ## Pricing is our choice inside the gap
 We charge inside the gap between run-cost and the buyer's ₹75k/₹2.25L/₹4.5L spend. e.g. charge ₹1L for the 15-member replacement → college saves ₹1.25L/mo, our margin ~₹0. Set the charge deliberately; run-cost above is the floor, not the price.
 
-**Still pending to make these EXACT [ASK]:** FreJun (does media streaming stack? channel minimum? DLT number?), Sarvam volume/student credits, and Resonance's REAL calls/day + connect rate + salaries.
+**Still pending to make these EXACT [ASK]:** ~~FreJun media-streaming stacking~~ RESOLVED 2026-07-13 (confirmed, stacks). Still open: FreJun channel-minimum flexibility below 10 (ask on Exotel-style call), DLT number, Sarvam volume/student credits, and Resonance's REAL calls/day + connect rate + salaries.
 
 ---
 

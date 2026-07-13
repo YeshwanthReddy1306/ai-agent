@@ -235,6 +235,12 @@ async function handleApi(req, res, url, body) {
     return json(res, 200, require('./lib/besttime').stats());
   }
 
+  // ---- Campus-visit bookings (pilot-safe: each carries an .ics the counselor imports) ----
+  if (req.method === 'GET' && url.pathname === '/api/bookings') {
+    const booking = require('./lib/booking');
+    return json(res, 200, { bookings: booking.list().map((b) => ({ ...b, ics: booking.ics(b) })) });
+  }
+
   // ---- M9: funnel ----
   if (req.method === 'GET' && url.pathname === '/api/funnel') {
     const leadRows = crm.listLeads();
