@@ -321,8 +321,16 @@ async function handleApi(req, res, url, body) {
 
     // Mirror the caller's language. LANG_SWITCH_TURNS=1 (default) switches the persona
     // the moment the caller changes language; set 2 in .env if misdetections ping-pong.
-    if (nextPersonaLang(call, stt.language_code || '', Number(process.env.LANG_SWITCH_TURNS) || 1)) {
+    let detectedLang = stt.language_code;
+    if (!detectedLang) {
+      if (/[\\u0C00-\\u0C7F]/.test(userText)) detectedLang = 'te-IN';
+      else if (/[\\u0900-\\u097F]/.test(userText)) detectedLang = 'hi-IN';
+      else if (/[a-zA-Z]/.test(userText)) detectedLang = 'en-IN';
+    }
+
+    if (nextPersonaLang(call, detectedLang || '', Number(process.env.LANG_SWITCH_TURNS) || 1)) {
       call.messages[0].content = call.buildPrompt(call.lead, call.personaLang);
+      call.messages.push({ role: 'system', content: `CRITICAL: The user has switched their language. You MUST now reply ONLY in the script and language of your system prompt. Do NOT use the language from earlier in the conversation.` });
       console.log(`[Turn] Persona switched to ${call.personaLang}`);
     }
 
@@ -336,7 +344,7 @@ async function handleApi(req, res, url, body) {
     console.log(`[Turn] LLM response: "${raw}"`);
     addUsage(call, { tokens: usage.total_tokens || 0 });
 
-    const reply = parseReply(raw, call.lastLang, call.lead);
+    const reply = parseReply(raw, call.personaLang, call.lead);
     console.log('[Turn] Parsed reply:', reply);
     call.lastLang = reply.lang; // sticky language across turns (premortem #5)
     const audios = await speakSafe(call, reply.text, reply.lang, reply.emotion);

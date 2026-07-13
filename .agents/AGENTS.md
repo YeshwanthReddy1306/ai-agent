@@ -15,3 +15,19 @@ The approved personas are snapshotted with SHA-256 checksums in `agent/personas/
 - `npm run preflight` **FAILS** if any live persona differs from the baseline.
 - `npm run restore-personas` — overwrite the live personas with the approved baseline (undo any unapproved drift). The server hot-reloads personas per call, so a restore is live immediately.
 - `npm run lock-personas` — re-snapshot the baseline. Run ONLY after the user has explicitly requested and approved a persona change.
+
+# Rule: Context Window Degradation in Voice Agents
+When building or optimizing voice agents (especially on large models like 105b), NEVER use a long conversation history (e.g., HISTORY_TURNS=12).
+A long history causes:
+1. Severe latency spikes as the call prolongs.
+2. "Context-bias degradation" where the LLM forgets the strict system instructions, drops output formatting tags, and reverts to generic responses.
+**Action:** Always maintain a short, sliding window of history (e.g., HISTORY_TURNS=3) to ensure lightning-fast latency and strict adherence to the persona.
+
+
+# Rule: Conversational Freedom vs. State-Machine Funnels
+When designing personas for conversational voice agents (especially using LLMs like Sarvam-105b), NEVER use rigid "state-machine" funnel steps like "Follow this exact path" or "Move to the next step ONLY after the parent answers".
+Rigid instructions cause:
+1. The AI to sound like it's "reading a script" instead of talking naturally.
+2. Complete failure in objection handling (the AI ignores user questions and blindly repeats the script).
+**Action:** Use "Goal-Oriented" instructions with "Conversational Freedom" and explicit "Objection Handling" blocks. Encourage filler words and colloquial grammar for native languages (Hindi/Telugu).
+
