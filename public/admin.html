@@ -45,8 +45,8 @@
   </div>
 
   <table><thead><tr>
-    <th>Parent / Student</th><th>Stream</th><th>Interest</th><th>Campus visit</th><th>Docs</th><th>Calls</th><th>Next action</th>
-  </tr></thead><tbody id="rows"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody></table>
+    <th>Parent / Student</th><th>Stream</th><th>Interest</th><th>Mood</th><th>Campus visit</th><th>Docs</th><th>Calls</th><th>Next action</th>
+  </tr></thead><tbody id="rows"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody></table>
 
   <!-- Dept 12: post-admission parent communication -->
   <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-top:24px">
@@ -74,6 +74,13 @@
     <div id="btGrid" style="display:flex;gap:3px;align-items:flex-end;height:90px"></div>
   </div>
 
+  <!-- Campus-visit bookings (pilot-safe: each carries a .ics the counselor imports) -->
+  <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-top:24px">
+    <b>Campus-visit bookings</b> <span id="bkCount" class="muted" style="font-size:13px"></span>
+    <div class="muted" style="font-size:13px;margin:4px 0 10px">When a parent agrees to a visit, it lands here for a counselor to confirm. Download the <code>.ics</code> to drop the slot into your own calendar — Sneha never writes to it directly, so no double-booking.</div>
+    <div id="bkList"></div>
+  </div>
+
 <script>
 async function load() {
   const [d, f] = await Promise.all([
@@ -92,15 +99,41 @@ async function load() {
     <td><b>${l.parentName||'—'}</b><br><span class="muted">${l.studentName||''}${l.area?' · '+l.area:''}</span></td>
     <td>${l.interestStream||'—'}</td>
     <td><span class="pill ${l.interest||'unknown'}">${l.interest||'—'}</span></td>
+    <td>${moodBadge(l.sentiment)}</td>
     <td>${l.appointment&&l.appointment.booked ? '<span class="book">✓ '+(l.appointment.when||'booked')+'</span>' : '<span class="muted">—</span>'}</td>
     <td><button onclick="showDocs('${l.id}','${(l.parentName||'').replace(/'/g,'')}')" style="background:#2a3150;color:var(--txt);border:0;border-radius:6px;padding:3px 9px;cursor:pointer">📄</button></td>
     <td>${l.calls||0}</td>
     <td class="muted">${l.nextAction||''}</td>
   </tr>`).join('');
-  document.getElementById('rows').innerHTML = rows || '<tr><td colspan="7" class="empty">No leads yet — complete a call to see it here.</td></tr>';
+  document.getElementById('rows').innerHTML = rows || '<tr><td colspan="8" class="empty">No leads yet — complete a call to see it here.</td></tr>';
 }
 load();
 loadBestTime();
+loadBookings();
+
+// Parent-mood badge (structured extraction). Colour-coded so an unhappy call is spottable.
+function moodBadge(s) {
+  const m = { positive: ['🙂', '#1f8a4c'], neutral: ['😐', '#5b6478'], negative: ['🙁', '#b4531f'], frustrated: ['😠', '#b3261e'] }[s];
+  return m ? `<span title="${s}" style="color:${m[1]};font-weight:600">${m[0]} ${s}</span>` : '<span class="muted">—</span>';
+}
+
+// Campus-visit bookings + one-click .ics download (data-URI, no extra endpoint).
+async function loadBookings() {
+  const d = await fetch('/api/bookings').then(r => r.json()).catch(() => null);
+  const list = document.getElementById('bkList');
+  if (!d || !d.bookings) { list.innerHTML = '<span class="muted">Server unreachable.</span>'; return; }
+  document.getElementById('bkCount').textContent = d.bookings.length ? `· ${d.bookings.length} pending` : '';
+  if (!d.bookings.length) { list.innerHTML = '<span class="muted">No visits booked yet — a call that books one shows here.</span>'; return; }
+  list.innerHTML = d.bookings.map(b => {
+    const href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(b.ics);
+    const file = `visit-${(b.student||'student').replace(/\s+/g,'_')}.ics`;
+    return `<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--line)">
+      <b>${b.student||'—'}</b> <span class="muted">${b.parent||''} · ${b.phone||''}</span>
+      <span class="book" style="margin-left:auto">🗓 ${b.when||'time to confirm'}</span>
+      <a href="${href}" download="${file}" style="background:#2a3150;color:var(--txt);text-decoration:none;border-radius:6px;padding:3px 10px;font-size:13px">⬇ .ics</a>
+    </div>`;
+  }).join('');
+}
 
 // Best time to call — connect-rate bars by hour (working hours 8–21 shown).
 async function loadBestTime() {
