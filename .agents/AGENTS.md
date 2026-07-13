@@ -43,3 +43,7 @@ When configuring prompts for Indic voice agents (specifically using engines like
    - **Rule**: LATIN SCRIPT + PHONETIC OVERRIDES.
    - **Instruction**: The LLM MUST output English domain words in English Latin script (e.g., admission, fees, hostel). Do NOT transliterate them into Telugu script.
    - **Post-Processing**: Because the TTS will mispronounce certain Latin words (e.g., reading "WhatsApp" as "WhaaatsApp"), you MUST use a pre-TTS regex replacer (	tsPhonetics) to swap known problem words with native script phonetic overrides (e.g., /\bwhatsapp\b/gi -> వాట్సాప్).
+
+# Rule: Persona Language Lock (Added via /learn)
+The Hindi, Telugu, and English language configurations, prompts, and flows are PERFECT and must NOT be changed. 
+Do not attempt to modify the language processing, script formatting (Latin vs Devanagari), or voice assignments for these personas. They are locked because they currently work flawlessly. Any future work should focus ONLY on infrastructure, latency, or CRM logic, NEVER on the language generation itself.
