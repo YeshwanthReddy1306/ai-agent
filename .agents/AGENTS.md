@@ -31,3 +31,15 @@ Rigid instructions cause:
 2. Complete failure in objection handling (the AI ignores user questions and blindly repeats the script).
 **Action:** Use "Goal-Oriented" instructions with "Conversational Freedom" and explicit "Objection Handling" blocks. Encourage filler words and colloquial grammar for native languages (Hindi/Telugu).
 
+
+# Rule: Indic TTS Code-Switching (Hinglish & Tenglish)
+When configuring prompts for Indic voice agents (specifically using engines like Sarvam AI), you MUST format English loanwords according to the TTS voice's native language model to prevent robotic accent-switching:
+
+1. **Hinglish (Hindi-first voices like Simran)**:
+   - **Rule**: STRICT TRANSLITERATION.
+   - **Instruction**: The LLM MUST transliterate all English domain words and acronyms into Devanagari script (e.g., एडमिशन, फीस, हॉस्टल, डिटेल्स). NEVER use Latin script in the Hindi output.
+
+2. **Tenglish (Telugu with non-native/generic voices)**:
+   - **Rule**: LATIN SCRIPT + PHONETIC OVERRIDES.
+   - **Instruction**: The LLM MUST output English domain words in English Latin script (e.g., admission, fees, hostel). Do NOT transliterate them into Telugu script.
+   - **Post-Processing**: Because the TTS will mispronounce certain Latin words (e.g., reading "WhatsApp" as "WhaaatsApp"), you MUST use a pre-TTS regex replacer (	tsPhonetics) to swap known problem words with native script phonetic overrides (e.g., /\bwhatsapp\b/gi -> వాట్సాప్).
