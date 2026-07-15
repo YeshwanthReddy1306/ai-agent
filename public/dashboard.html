@@ -84,6 +84,23 @@ td.trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .warn{background:color-mix(in oklch,var(--warm) 16%,transparent);border:1px solid color-mix(in oklch,var(--warm) 40%,transparent);
   border-radius:var(--r-sm);padding:11px 14px;font-size:13.5px;margin-bottom:var(--s4)}
 .warn b{color:var(--ink)}
+/* 12-department automation grid */
+.depts{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.dept{background:var(--paper-2);border:1px solid var(--line);border-radius:var(--r-md);padding:16px 18px;
+  position:relative;overflow:hidden;display:flex;flex-direction:column;gap:6px}
+.dept::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--ok)}
+.dept.sms::before{background:var(--warm)} .dept.key::before{background:var(--hot)}
+.dept .dnum{font-family:var(--mono);font-size:11px;color:var(--ink-faint);letter-spacing:.05em}
+.dept .dname{font-family:var(--serif);font-size:1.15rem;font-weight:600;line-height:1.1}
+.dept .ddoes{font-size:13px;color:var(--ink-soft)}
+.dept .dfoot{display:flex;align-items:flex-end;justify-content:space-between;margin-top:auto;padding-top:10px;gap:8px}
+.dept .dmetric{font-family:var(--mono);font-size:1.5rem;color:var(--accent);line-height:1}
+.dept .dmetric small{display:block;font-family:var(--sans);font-size:11px;color:var(--ink-soft);margin-top:2px}
+.dstatus{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:20px;white-space:nowrap}
+.dstatus i{width:7px;height:7px;border-radius:50%;flex:none}
+.dstatus.auto{color:oklch(38% 0.1 155);background:color-mix(in oklch,var(--ok) 16%,transparent)} .dstatus.auto i{background:var(--ok)}
+.dstatus.sms{color:oklch(38% 0.1 70);background:color-mix(in oklch,var(--warm) 18%,transparent)} .dstatus.sms i{background:var(--warm)}
+.dstatus.key{color:oklch(42% 0.14 25);background:color-mix(in oklch,var(--hot) 14%,transparent)} .dstatus.key i{background:var(--hot)}
 .doc{display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid var(--line)}
 .doc:first-child{border-top:none}
 .doc .box{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--line);display:grid;place-items:center;flex:none;font-size:11px}
@@ -110,6 +127,8 @@ td.trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   <nav class="nav" id="nav">
     <a href="#/overview" data-r="overview">
       <svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg> Overview</a>
+    <a href="#/departments" data-r="departments">
+      <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> 12 Departments</a>
     <a href="#/leads" data-r="leads">
       <svg class="ico" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg> Leads <span class="cnt" id="cLeads"></span></a>
     <a href="#/visits" data-r="visits">

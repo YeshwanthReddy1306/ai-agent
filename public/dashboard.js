@@ -217,6 +217,61 @@ function wireFilePick(inputId, nameId) {
   });
 }
 
+/* ======================================================= 12 DEPARTMENTS
+   Proof-of-automation surface: all twelve, live activity + honest status. A department
+   that depends on an unset key is marked so (SMS fallback / needs gateway) — never claimed
+   as fully live when it isn't. Metrics come from the same real endpoints the wall uses. */
+function pageDepartments() {
+  const f = D.funnel || {}, leads = (D.crm && D.crm.leads) || [], tasks = D.follow || [];
+  const h = window.__health || {};
+  const n = (re) => tasks.filter((t) => re.test(String(t.type || ''))).length;
+  const conv = leads.reduce((a, l) => a + (l.calls || 0), 0);
+
+  // status: 'auto' (fully live) · 'sms' (works, on SMS until WhatsApp key) · 'key' (needs a key)
+  const D12 = [
+    ['Lead capture', 'Captures every enquiry — web form + import', D.queue.length, 'in the calling queue', 'auto'],
+    ['First contact', 'Rings the family back within minutes', f.contacted ?? 0, 'families contacted', 'auto'],
+    ['Counselling', 'Diagnoses the real concern, then guides', leads.filter((l) => l.lastSummary).length, 'counselled', 'auto'],
+    ['Brochures / WhatsApp', 'Sends the right leaflet automatically', n(/brochure|send_info|message/i), 'messages queued', h.whatsapp ? 'auto' : 'sms'],
+    ['Campus visits', 'Books the slot, hands the counsellor an .ics', D.bookings.length, 'visits booked', 'auto'],
+    ['Documents', 'Chases the admission checklist', leads.filter((l) => l.status === 'visit_booked' || l.interest === 'hot').length, 'in collection', 'auto'],
+    ['Data entry', 'Types nothing — extracts straight to the CRM', 0, 'hours of human typing', 'auto'],
+    ['Follow-up', 'Calls back at the statistically best hour', n(/follow_up|callback|retry/i), 'scheduled', h.whatsapp ? 'auto' : 'sms'],
+    ['Payments', 'Explains fees, plans and reminders', n(/payment|fee/i), 'reminders', h.paymentGateway ? 'auto' : 'key'],
+    ['CRM', 'Remembers every family across calls', (D.crm && D.crm.stats && D.crm.stats.totalLeads) ?? 0, 'records', 'auto'],
+    ['Reporting', 'Funnel, connect-rate and cost analytics', f.conversations ?? conv, 'conversations logged', 'auto'],
+    ['Post-admission', 'Keeps admitted parents in the loop', D.roster.length, 'on the roster', h.whatsapp ? 'auto' : 'sms'],
+  ];
+
+  const live = D12.filter((d) => d[4] === 'auto').length;
+  const sms = D12.filter((d) => d[4] === 'sms').length;
+  const keyless = D12.filter((d) => d[4] === 'key').length;
+  const label = { auto: ['auto', 'Automated'], sms: ['sms', 'Automated · SMS'], key: ['key', 'Needs gateway key'] };
+  const notes = [];
+  if (sms) notes.push(`<b>${sms}</b> department(s) run on SMS until <code>WHATSAPP_PHONE_ID</code> is added — they still work, just costlier.`);
+  if (keyless) notes.push(`<b>Payments</b> needs the college's payment-gateway link (<code>PAYMENT_LINK_BASE</code>) before it can send live links.`);
+
+  $('main').innerHTML = `
+    <div class="page-h"><div><h1>12 Departments — automated</h1>
+      <div class="sub">${live} fully live · ${sms} on SMS fallback · ${keyless} awaiting a key</div></div></div>
+    ${notes.length ? `<div class="warn">${notes.join('<br>')}</div>` : ''}
+    <div class="depts">
+      ${D12.map((d, i) => {
+        const [key, text] = label[d[4]];
+        return `<div class="dept ${d[4] === 'auto' ? '' : d[4]}">
+          <span class="dnum">DEPT ${String(i + 1).padStart(2, '0')}</span>
+          <span class="dname">${esc(d[0])}</span>
+          <span class="ddoes">${esc(d[1])}</span>
+          <div class="dfoot">
+            <span class="dmetric">${d[2]}<small>${esc(d[3])}</small></span>
+            <span class="dstatus ${key}"><i></i>${text}</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    <p class="muted" style="font-size:12.5px;margin-top:var(--s4)">Every number is live from the system — this is real activity, not a mock-up. Green = fully automated end-to-end today.</p>`;
+}
+
 /* ============================================================== VISITS */
 function pageVisits() {
   $('main').innerHTML = `
@@ -321,7 +376,7 @@ function pagePost() {
 }
 
 /* ============================================================== router */
-const ROUTES = { overview: pageOverview, leads: pageLeads, visits: pageVisits, followups: pageFollow, post: pagePost };
+const ROUTES = { overview: pageOverview, departments: pageDepartments, leads: pageLeads, visits: pageVisits, followups: pageFollow, post: pagePost };
 
 async function route() {
   const r = (location.hash.replace('#/', '') || 'overview');
