@@ -16,7 +16,8 @@ if (fs.existsSync(envPath)) {
   }
 }
 
-const { sttTranscribe, ttsSpeak, ttsCachedLine, ackClips, serviceHealth } = require('./lib/sarvam');
+const { sttTranscribe, ttsSpeak, ttsCachedLine, ttsCacheGet, ttsCachePut, ackClips, EMOTION_STYLE, serviceHealth } = require('./lib/sarvam');
+const { brainChatStream, TtsStream } = require('./lib/sarvam-stream');
 const { parseTag, applyRegister, ttsPhonetics, nextPersonaLang } = require('./lib/textpost');
 const { spokenNumbers } = require('./lib/numbers');
 const crm = require('./lib/crm');
@@ -112,7 +113,107 @@ function freshAgent() {
 const HISTORY_TURNS = Number(process.env.HISTORY_TURNS) || 12;
 const windowed = (messages) => [messages[0], ...messages.slice(1).slice(-HISTORY_TURNS)];
 
+/* ---------------------------------------------------------------- streaming TTS
+   REST TTS renders the WHOLE file before returning a byte — measured at ~3,400ms to first
+   audio, which was the entire remaining latency after the reasoning_effort fix. Sarvam's TTS
+   WebSocket emits chunks AS IT SYNTHESISES: first audio in ~400ms (measured).
+
+   Three things this must NOT break:
+     1. the disk cache (TTS ≈ 80% of the Sarvam bill — a repeat line must still cost ₹0),
+     2. ordering (sentences must play in sequence),
+     3. smoothness (a 7s reply arrives as ~70 chunks; one <Audio> element per chunk would
+        stutter badly, so chunks are batched — small first batch for speed, larger after).       */
+// linear16 (raw PCM16) — no MP3 encoder-padding, byte-concatenatable => the client can
+// schedule batches on the Web Audio clock with zero seam. 24kHz is Bulbul v3's native rate
+// (no resampling). ~3x the bytes of MP3, which only matters on the web path (phone uses mulaw).
+const TTS_WS = { sampleRate: 24000, codec: 'linear16' };
+const mergeB64 = (list) => Buffer.concat(list.map((b) => Buffer.from(b, 'base64'))).toString('base64');
+
+// Pick the TTS language from the script the reply is actually written in (same Unicode ranges
+// the STT-fallback uses). Telugu/Devanagari present => that language, even if the sentence also
+// carries code-switched English words. Falls back to the turn's persona language when neither
+// Indic script is present (a pure-English reply). Tag-independent, so it's correct from the
+// first streamed sentence — before the ~~lang~~ tag arrives.
+function ttsLangForText(text, fallback) {
+  if (/[ఀ-౿]/.test(text)) return 'te-IN';   // Telugu
+  if (/[ऀ-ॿ]/.test(text)) return 'hi-IN';   // Devanagari (Hindi)
+  if (/[A-Za-z]/.test(text)) return 'en-IN';
+  return fallback || 'en-IN';
+}
+
+async function speakStreamed(call, text, lang, emotion, onBatch, growth) {
+  const ttsText = spokenNumbers(ttsPhonetics(text, lang), lang);
+
+  // 1) CACHE FIRST — instant and free. Beats streaming every time. (Cached blob is PCM.)
+  const hit = ttsCacheGet(ttsText, lang, emotion, TTS_WS);
+  if (hit) { onBatch([hit], 'pcm16'); if (growth) growth.n++; return; }
+
+  // 2) MISS -> stream it.
+  const style = EMOTION_STYLE[emotion] || EMOTION_STYLE.warm;
+  const all = [];
+  await new Promise((resolve) => {
+    let tts, batch = [], done = false;
+    // GROWING batches. Each <Audio> element the client creates costs a handoff gap, and too many
+    // of them stutter. Sarvam synthesises ~3x faster than realtime, so after a tiny first batch
+    // (for speed) we can afford progressively larger ones — the audio already playing always
+    // outlasts the wait for the next batch.
+    //
+    // The counter is shared ACROSS THE WHOLE TURN (passed in as `growth`), not per sentence:
+    // when it reset per sentence, a 5-sentence reply produced 3,8,20 · 3,8,20 · 3,8,20… = 15
+    // batches and audibly stuttered. Shared, the same reply emits ~5.
+    const SIZES = [3, 8, 20, 40, 60];
+    const targetSize = () => SIZES[Math.min(growth ? growth.n : 0, SIZES.length - 1)];
+
+    const emit = () => {
+      if (!batch.length) return;
+      onBatch(batch.slice(), 'pcm16');            // WS delivers linear16
+      batch = [];
+      if (growth) growth.n++;
+    };
+
+    const finish = async () => {
+      if (done) return; done = true;
+      emit();                                                            // flush the tail
+      if (all.length) {
+        addUsage(call, { ttsChars: ttsText.length });                    // meter real synthesis
+        ttsCachePut(ttsText, lang, emotion, TTS_WS, mergeB64(all));      // free next time
+      }
+      if (tts) tts.close();
+      resolve();
+    };
+
+    try {
+      tts = new TtsStream(lang, emotion, style.pace, style.temperature, TTS_WS.codec,
+        { sampleRate: TTS_WS.sampleRate, minBufferSize: 30 });
+      tts.on('audio', (b64) => {
+        all.push(b64); batch.push(b64);
+        if (batch.length >= targetSize()) emit();
+      });
+      tts.on('final', finish);
+      tts.on('error', async (e) => {
+        if (all.length) return finish();                                  // partial audio: keep it
+        console.error('[tts-stream] falling back to REST:', e.message);   // nothing yet: fall back
+        done = true;
+        try {
+          const audios = await speakSafe(call, text, lang, emotion);
+          if (audios && audios.length) onBatch(audios, 'mp3');   // REST fallback is MP3, not PCM
+        } catch (e2) { console.error('tts fallback failed:', e2.message); }
+        if (tts) tts.close();
+        resolve();
+      });
+      setTimeout(finish, 20000);                                          // hard safety net
+      tts.connect();
+      tts.sendText(ttsText);
+      tts.flush();
+    } catch (e) {
+      console.error('[tts-stream] init failed:', e.message);
+      finish();
+    }
+  });
+}
+
 // TTS that never kills the turn: on failure the text still reaches the client (premortem #6).
+// Still used for the GREETING (already cached + instant) and as the streaming fallback.
 async function speakSafe(call, text, lang, emotion) {
   try {
     // Deterministic delivery pass: acronym phonetics, then numbers → natural spoken words
@@ -138,12 +239,20 @@ async function speakSafe(call, text, lang, emotion) {
 // ---- routes ----
 async function handleApi(req, res, url, body) {
   if (req.method === 'GET' && url.pathname === '/api/health') {
+    // Config-readiness flags: the ops dashboard surfaces these as honest warnings, so a
+    // silently-unconfigured department (e.g. counsellor alerts firing into the void) is
+    // visible instead of failing quietly.
+    const PLACEHOLDER = /PLACEHOLDER|ADD_WHEN/i;
+    const real = (v) => !!v && !PLACEHOLDER.test(v);
     return json(res, 200, {
       ok: true, hasKey: !!API_KEY, college: college.name, agent: college.agentName,
       model: process.env.LLM_MODEL || 'sarvam-30b', voice: process.env.AGENT_VOICE || 'simran',
       maxCallMinutes: MAX_CALL_MS / 60000, sessionUsage,
       latency: { p50: percentile(0.5), p95: percentile(0.95), turns: turnLatencies.length },
       services: serviceHealth, brain: brainStatus(),
+      whatsapp: real(process.env.WHATSAPP_TOKEN) && real(process.env.WHATSAPP_PHONE_ID),
+      counselorPhone: real(process.env.COUNSELOR_PHONE),
+      paymentGateway: real(process.env.PAYMENT_LINK_BASE),
     });
   }
   if (req.method === 'GET' && url.pathname === '/api/leads') return json(res, 200, leadsStore.all());
@@ -295,6 +404,10 @@ async function handleApi(req, res, url, body) {
     if (!call) return json(res, 404, { error: 'Unknown callId' });
     call.touched = Date.now();
 
+    // A Sarvam timeout (STT/LLM) used to throw out of here with no response ever sent, leaving
+    // the client stuck in "thinking" forever. Now every failure sends SOMETHING back and keeps
+    // the call alive — the parent can simply repeat instead of the call dying.
+    try {
     const t0 = Date.now();
     const stt = await sttTranscribe(Buffer.from(body.audio, 'base64'), 'unknown');
     const tStt = Date.now();
@@ -334,26 +447,88 @@ async function handleApi(req, res, url, body) {
       console.log(`[Turn] Persona switched to ${call.personaLang}`);
     }
 
-    // ONE synchronous LLM hop (AGENT-SPEC §1.6). Required per turn (not at boot) so the
-    // per-call persona hot-reload (freshAgent cache clear) also refreshes this module.
-    const { generateAgentResponse } = require('./agent/llm_helper');
-    const { text: raw, usage } = await generateAgentResponse({ messages: call.messages, personaLang: call.personaLang });
-    call.messages.push({ role: 'assistant', content: raw });
+    res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Transfer-Encoding': 'chunked' });
+    res.write(JSON.stringify({ type: 'start', userText, userLang: stt.language_code, wrapUp }) + '\n');
 
-    const tLlm = Date.now();
-    console.log(`[Turn] LLM response: "${raw}"`);
-    addUsage(call, { tokens: usage.total_tokens || 0 });
+    const chatMessages = [call.messages[0], ...call.messages.slice(1).slice(-HISTORY_TURNS)];
+    const brainStream = brainChatStream(chatMessages, call.personaLang);
+    
+    let rawFull = '';
+    let currentEmotion = 'warm';
+    let chunkIndex = 0;          // monotonic audio index; client plays batches in this order
+    let ttsChain = Promise.resolve();   // serialises sentence synthesis (see below)
+    const growth = { n: 0 };            // batch-size curve, shared across ALL sentences this turn
+    // Perceived latency = when the parent HEARS the first syllable, not when the whole
+    // reply finished synthesising. The old metric timed the latter (Promise.all of every
+    // TTS chunk), which reported ~5s and made the pipeline look far slower than it feels.
+    let tFirstAudio = 0;
+    let tFirstText = 0;
 
-    const reply = parseReply(raw, call.personaLang, call.lead);
-    console.log('[Turn] Parsed reply:', reply);
-    call.lastLang = reply.lang; // sticky language across turns (premortem #5)
-    const audios = await speakSafe(call, reply.text, reply.lang, reply.emotion);
+    for await (const chunk of brainStream) {
+      if (typeof chunk === 'object' && chunk.usage) {
+        addUsage(call, { tokens: chunk.usage.total_tokens || 0 });
+        continue;
+      }
+      rawFull += chunk + ' ';
+      const parsed = parseTag(chunk, call.lastLang);
+      currentEmotion = chunk.includes('~~') ? parsed.emotion : currentEmotion;
+      call.lastLang = parsed.lang;
+
+      const text = applyRegister(parsed.text, call.lead);
+      if (!text) continue;
+
+      // TTS LANGUAGE = the script actually written, NOT parsed.lang. The ~~lang~~ tag only
+      // appears at the END of a reply, so early sentences fall back to the PREVIOUS turn's
+      // language — which on a mid-call language switch feeds Telugu/Hindi text to the TTS as
+      // 'en-IN', so Sarvam returns nothing and the caller hears silence. Detecting the script
+      // is deterministic, tag-independent, and gives the identical result when NOT switching
+      // (so the working voice/latency is unchanged). call.personaLang is the fallback.
+      const ttsLang = ttsLangForText(text, call.personaLang);
+
+      // Instantly stream the text transcript line
+      if (!tFirstText) tFirstText = Date.now();
+      res.write(JSON.stringify({ type: 'text', text: text, lang: ttsLang, emotion: currentEmotion }) + '\n');
+
+      // Stream this sentence's audio. Sentences are CHAINED (not raced) so their chunks can
+      // never interleave — the client plays index 0,1,2… in order. Sentence N+1 synthesises
+      // while sentence N is still playing, so chaining costs no perceived time.
+      const lang = ttsLang, emo = currentEmotion, body = text;
+      ttsChain = ttsChain.then(() => speakStreamed(call, body, lang, emo, (batch, format) => {
+        if (!tFirstAudio) tFirstAudio = Date.now();   // <- the number the parent actually feels
+        const rate = format === 'pcm16' ? TTS_WS.sampleRate : undefined;   // mp3 carries its own rate
+        res.write(JSON.stringify({ type: 'audio', index: chunkIndex++, audios: batch, format, rate }) + '\n');
+      }, growth)).catch((e) => { console.error('tts chain error:', e.message); });
+    }
+
+    await ttsChain;
+
+    call.messages.push({ role: 'assistant', content: rawFull.trim() });
+    
     const tEnd = Date.now();
-    const timings = { stt: tStt - t0, llm: tLlm - tStt, tts: tEnd - tLlm, total: tEnd - t0 };
-    recordLatency(timings.total);
-    console.log(`[Turn] latency: stt ${timings.stt}ms · llm ${timings.llm}ms · tts ${timings.tts}ms · total ${timings.total}ms (p95 ${percentile(0.95)}ms)`);
-
-    return json(res, 200, { userText, userLang: stt.language_code, reply, audios, wrapUp, timings });
+    const timings = {
+      stt: tStt - t0,                                   // batch STT: the biggest single block
+      toFirstText: tFirstText ? tFirstText - t0 : 0,    // first sentence generated
+      toFirstAudio: tFirstAudio ? tFirstAudio - t0 : 0, // PERCEIVED latency — what the parent feels
+      total: tEnd - t0,                                 // whole reply synthesised (not perceived)
+    };
+    // Track the perceived number, not the total. Falls back to total if TTS produced nothing.
+    recordLatency(timings.toFirstAudio || timings.total);
+    console.log(`[Turn] stt ${timings.stt}ms · llm→first-sentence ${timings.toFirstText - timings.stt}ms · tts ${timings.toFirstAudio - timings.toFirstText}ms · FIRST-AUDIO ${timings.toFirstAudio}ms · total ${timings.total}ms`);
+    
+    // We send a close event so the client knows LLM generation is completely done
+    res.write(JSON.stringify({ type: 'end', timings }) + '\n');
+    res.end();
+    return;
+    } catch (e) {
+      console.error('[Turn] failed (recovering, call stays alive):', e.message);
+      // Pre-stream failure (STT threw): headers not sent yet -> tell the client "empty" so it
+      // simply re-listens (parent repeats), exactly like a noise-only turn.
+      if (!res.headersSent) return json(res, 200, { empty: true });
+      // Mid-stream failure (LLM/TTS threw after we started streaming): close the reply cleanly
+      // so the client finalizes and returns to listening instead of hanging in "thinking".
+      try { res.write(JSON.stringify({ type: 'end', error: 'partial' }) + '\n'); res.end(); } catch { /* socket gone */ }
+      return;
+    }
   }
 
   if (req.method === 'POST' && url.pathname === '/api/call/end') {
@@ -429,7 +604,12 @@ const server = http.createServer((req, res) => {
   // Dept 1: the public enquiry form + its submit endpoint are intentionally OUTSIDE the
   // shared-secret gate — a prospective parent must reach them without a key. They only
   // CREATE a lead (rate-limited by nothing sensitive); they read nothing private.
-  const isPublic = url.pathname === '/enquiry.html' || url.pathname === '/api/enquiry';
+  // Public: the parent enquiry page + its POST, plus the shared STYLING assets it needs
+  // (tokens/ui css + self-hosted fonts). Only non-sensitive presentation files are exposed —
+  // never data endpoints or internal pages.
+  const isPublic = url.pathname === '/enquiry.html' || url.pathname === '/api/enquiry'
+    || url.pathname === '/tokens.css' || url.pathname === '/ui.css'
+    || url.pathname.startsWith('/fonts/');
 
   // Shared-secret gate (H4): if ACCESS_SECRET is set, require it before ANY route so a
   // shared demo link can't be used by strangers to burn Sarvam/Groq/Twilio credits.

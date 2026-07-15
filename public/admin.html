@@ -3,82 +3,146 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Resonance — Admissions CRM</title>
+<title>Admissions CRM</title>
+<link rel="stylesheet" href="/tokens.css" />
+<link rel="stylesheet" href="/ui.css" />
 <style>
-  :root { --bg:#0b1020; --card:#141b33; --line:#242c4a; --txt:#e8ecfb; --mut:#8b93b7;
-          --hot:#ff5a5a; --warm:#ffb020; --cold:#4aa3ff; --ok:#3ddc84; }
-  * { box-sizing:border-box; } body { margin:0; background:var(--bg); color:var(--txt);
-      font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif; padding:28px; }
-  h1 { margin:0 0 4px; font-size:22px; } .sub { color:var(--mut); margin-bottom:22px; }
-  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:14px; margin-bottom:24px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
-  .card .n { font-size:30px; font-weight:800; } .card .l { color:var(--mut); font-size:13px; }
-  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line);
-          border-radius:14px; overflow:hidden; }
-  th,td { text-align:left; padding:11px 14px; border-bottom:1px solid var(--line); font-size:14px; vertical-align:top; }
-  th { color:var(--mut); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
-  tr:last-child td { border-bottom:none; }
-  .pill { font-size:11px; font-weight:700; padding:3px 9px; border-radius:99px; text-transform:uppercase; }
-  .hot{background:rgba(255,90,90,.16);color:var(--hot)} .warm{background:rgba(255,176,32,.16);color:var(--warm)}
-  .cold{background:rgba(74,163,255,.16);color:var(--cold)} .unknown{background:#2a3150;color:var(--mut)}
-  .book { color:var(--ok); font-weight:600; } .muted { color:var(--mut); }
-  .empty { color:var(--mut); padding:26px; text-align:center; }
-  a.refresh { color:var(--cold); text-decoration:none; font-size:13px; float:right; }
+  body { padding:0 0 var(--s7); }
+  .mast { position:sticky; top:0; z-index:var(--z-mast); background:color-mix(in oklch,var(--paper) 90%,transparent);
+          backdrop-filter:blur(8px); border-bottom:1px solid var(--line); margin-bottom:var(--s5); }
+  .mast .wrap { display:flex; align-items:center; justify-content:space-between; height:66px; }
+  h1 { font-size:2rem; margin-bottom:2px; }
+  .sub { color:var(--ink-soft); font-size:14px; margin-bottom:var(--s5); font-family:var(--mono); }
+
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:var(--s5); }
+  .cards .card { padding:var(--s3) var(--s4); }
+  .cards .n { font-family:var(--mono); font-size:2rem; font-weight:500; line-height:1.1; color:var(--accent); }
+  .cards .l { color:var(--ink-soft); font-size:13px; margin-top:2px; }
+
+  .panel { background:var(--paper-2); border:1px solid var(--line); border-radius:var(--r-md);
+           padding:var(--s4); margin-bottom:var(--s5); }
+  .panel > b { font-family:var(--serif); font-size:1.15rem; font-weight:600; }
+  .panel .help { color:var(--ink-soft); font-size:13.5px; margin:5px 0 12px; max-width:80ch; }
+  code { font-family:var(--mono); font-size:12.5px; background:var(--paper-3); padding:1px 5px; border-radius:4px; }
+
+  /* border-collapse:separate (NOT collapse+overflow:hidden) — a clipping ancestor kills
+     position:sticky, which was making rows bleed around the header. */
+  table { width:100%; border-collapse:separate; border-spacing:0; background:var(--paper-2);
+          border:1px solid var(--line); border-radius:var(--r-md); margin-bottom:var(--s5); table-layout:fixed; }
+  thead th { position:sticky; top:66px; background:var(--paper-3); z-index:5;
+             box-shadow:0 1px 0 var(--line); white-space:nowrap; }
+  thead th:first-child { border-top-left-radius:var(--r-md); }
+  thead th:last-child  { border-top-right-radius:var(--r-md); }
+  th,td { text-align:left; padding:12px 14px; border-bottom:1px solid var(--line); font-size:14.5px; vertical-align:middle; }
+  th { color:var(--ink-soft); font-weight:600; font-size:11.5px; text-transform:uppercase;
+       letter-spacing:.08em; font-family:var(--mono); }
+  tbody tr { transition:background var(--dur-1); }
+  tbody tr:hover { background:var(--paper-3); }
+  tbody tr:last-child td { border-bottom:none; }
+  /* fixed column widths — stops "Parent / Student" and "Campus visit" wrapping */
+  col.c-family{width:20%} col.c-stream{width:12%} col.c-interest{width:9%} col.c-mood{width:11%}
+  col.c-visit{width:14%} col.c-docs{width:6%} col.c-calls{width:6%} col.c-next{width:22%}
+  td.trunc { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .empty { color:var(--ink-soft); padding:var(--s5); text-align:center; }
+  .book { color:var(--ok); font-weight:600; }
+
+  input[type=text], input:not([type]), select, input[type=file] {
+    font-family:var(--sans); font-size:14.5px; min-height:40px; padding:8px 11px; border-radius:var(--r-sm);
+    background:var(--paper); color:var(--ink); border:1px solid var(--line); }
+  input:focus-visible, select:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .btn--sm { min-height:36px; padding:0 14px; font-size:14px; border-radius:var(--r-sm); }
+
+  .ico { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.8; vertical-align:-2px; }
+  .mood { display:inline-flex; align-items:center; gap:6px; font-weight:600; font-size:13.5px; }
+  .mood i { width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .bt-bar { flex:1; text-align:center; }
+  .bk-row { display:flex; gap:12px; align-items:center; padding:10px 0; border-top:1px solid var(--line); flex-wrap:wrap; }
 </style>
 </head>
 <body>
-  <a class="refresh" href="javascript:load()">↻ refresh</a>
-  <h1>Admissions CRM</h1>
-  <div class="sub" id="sub">Loading…</div>
-  <div class="cards" id="cards"></div>
-
-  <!-- M2: lead import -->
-  <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:24px">
-    <b>Import leads (CSV)</b>
-    <div class="muted" style="font-size:13px;margin:4px 0 10px">
-      Columns: <code>parentName, phone, studentName, gender, language(te/hi/en), area, tenthResult, interest, source</code>
-      — only <code>parentName</code> and <code>phone</code> are required. Excel? Save-As → CSV first. Simple fields only (no commas inside a field).
+  <header class="mast">
+    <div class="wrap">
+      <div class="wordmark"><b></b><span></span></div>
+      <button class="btn btn--ghost btn--sm" onclick="load();loadBestTime();loadBookings()">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg> Refresh
+      </button>
     </div>
-    <input type="file" id="csvFile" accept=".csv,text/csv" />
-    <button onclick="importCsv()" style="background:var(--cold);color:#fff;border:0;border-radius:8px;padding:6px 14px;cursor:pointer;font-weight:600">Upload</button>
-    <div id="importResult" style="font-size:13px;margin-top:10px"></div>
-  </div>
+  </header>
 
-  <table><thead><tr>
-    <th>Parent / Student</th><th>Stream</th><th>Interest</th><th>Mood</th><th>Campus visit</th><th>Docs</th><th>Calls</th><th>Next action</th>
-  </tr></thead><tbody id="rows"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody></table>
+  <div class="wrap">
+    <h1>Admissions CRM</h1>
+    <div class="sub" id="sub">Loading…</div>
+    <div class="cards" id="cards"></div>
 
-  <!-- Dept 12: post-admission parent communication -->
-  <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-top:24px">
-    <b>Post-admission messages (Dept 12)</b>
-    <div class="muted" style="font-size:13px;margin:4px 0 10px">Import admitted students (columns <code>studentName, parentName, phone, language, class, section</code>), then broadcast in the parent's language. WhatsApp when keys are live; SMS meanwhile.</div>
-    <input type="file" id="rosterFile" accept=".csv" />
-    <button onclick="importRoster()" style="background:var(--cold);color:#fff;border:0;border-radius:8px;padding:6px 14px;cursor:pointer;font-weight:600">Import roster</button>
-    <span id="rosterInfo" class="muted" style="font-size:13px"></span>
-    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <select id="ntype" style="padding:6px;border-radius:8px;background:#0b1020;color:var(--txt);border:1px solid var(--line)">
-        <option value="absent">Absent alert</option><option value="result">Test result</option>
-        <option value="fee">Fee due</option><option value="pta">PTA meeting</option><option value="circular">Circular</option>
-      </select>
-      <input id="ndetail" placeholder="detail (date / result / message)" style="flex:1;min-width:180px;padding:6px;border-radius:8px;background:#0b1020;color:var(--txt);border:1px solid var(--line)" />
-      <input id="nsection" placeholder="section (blank=all)" style="width:130px;padding:6px;border-radius:8px;background:#0b1020;color:var(--txt);border:1px solid var(--line)" />
-      <button onclick="broadcast()" style="background:var(--ok);color:#04101f;border:0;border-radius:8px;padding:6px 14px;cursor:pointer;font-weight:700">Send</button>
+    <!-- M2: lead import -->
+    <div class="panel">
+      <b>Import leads (CSV)</b>
+      <div class="help">
+        Columns: <code>parentName, phone, studentName, gender, language(te/hi/en), area, tenthResult, interest, source</code>
+        — only <code>parentName</code> and <code>phone</code> are required. Excel? Save-As → CSV first. Simple fields only (no commas inside a field).
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <label class="filepick" for="csvFile">
+          <input type="file" id="csvFile" accept=".csv,text/csv" />
+          <span class="btn btn--ghost btn--sm" tabindex="-1">Choose CSV</span>
+          <span class="fname" id="csvName">No file chosen</span>
+          <span class="fhint">or drop it here</span>
+        </label>
+        <button class="btn btn--sm" onclick="importCsv()">Upload</button>
+      </div>
+      <div id="importResult" style="font-size:13.5px;margin-top:10px"></div>
     </div>
-    <div id="notifyResult" style="font-size:13px;margin-top:8px"></div>
-  </div>
 
-  <!-- Best time to call (connect-rate by hour) -->
-  <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-top:24px">
-    <b>Best time to call</b> <span id="btSamples" class="muted" style="font-size:13px"></span>
-    <div class="muted" style="font-size:13px;margin:4px 0 10px">Connect-rate by hour — smart retries target the greenest slots. Fills in as calls happen; uses research defaults (4–5 PM, 10–11 AM) until then.</div>
-    <div id="btGrid" style="display:flex;gap:3px;align-items:flex-end;height:90px"></div>
-  </div>
+    <table>
+      <colgroup>
+        <col class="c-family"/><col class="c-stream"/><col class="c-interest"/><col class="c-mood"/>
+        <col class="c-visit"/><col class="c-docs"/><col class="c-calls"/><col class="c-next"/>
+      </colgroup>
+      <thead><tr>
+        <th>Family</th><th>Stream</th><th>Interest</th><th>Mood</th><th>Visit</th><th>Docs</th><th>Calls</th><th>Next step</th>
+      </tr></thead>
+      <tbody id="rows"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+    </table>
 
-  <!-- Campus-visit bookings (pilot-safe: each carries a .ics the counselor imports) -->
-  <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-top:24px">
-    <b>Campus-visit bookings</b> <span id="bkCount" class="muted" style="font-size:13px"></span>
-    <div class="muted" style="font-size:13px;margin:4px 0 10px">When a parent agrees to a visit, it lands here for a counselor to confirm. Download the <code>.ics</code> to drop the slot into your own calendar — Sneha never writes to it directly, so no double-booking.</div>
-    <div id="bkList"></div>
+    <!-- Dept 12: post-admission parent communication -->
+    <div class="panel">
+      <b>Post-admission messages (Dept 12)</b>
+      <div class="help">Import admitted students (columns <code>studentName, parentName, phone, language, class, section</code>), then broadcast in the parent's language. WhatsApp when keys are live; SMS meanwhile.</div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <label class="filepick" for="rosterFile">
+          <input type="file" id="rosterFile" accept=".csv,text/csv" />
+          <span class="btn btn--ghost btn--sm" tabindex="-1">Choose CSV</span>
+          <span class="fname" id="rosterName">No file chosen</span>
+          <span class="fhint">or drop it here</span>
+        </label>
+        <button class="btn btn--sm" onclick="importRoster()">Import roster</button>
+        <span id="rosterInfo" class="muted" style="font-size:13.5px"></span>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select id="ntype">
+          <option value="absent">Absent alert</option><option value="result">Test result</option>
+          <option value="fee">Fee due</option><option value="pta">PTA meeting</option><option value="circular">Circular</option>
+        </select>
+        <input id="ndetail" placeholder="detail (date / result / message)" style="flex:1;min-width:190px" />
+        <input id="nsection" placeholder="section (blank=all)" style="width:150px" />
+        <button class="btn btn--sm" onclick="broadcast()">Send</button>
+      </div>
+      <div id="notifyResult" style="font-size:13.5px;margin-top:10px"></div>
+    </div>
+
+    <!-- Best time to call -->
+    <div class="panel">
+      <b>Best time to call</b> <span id="btSamples" class="muted" style="font-size:13.5px"></span>
+      <div class="help">Connect-rate by hour — smart retries target the greenest slots. Fills in as calls happen; uses research defaults (4–5 PM, 10–11 AM) until then.</div>
+      <div id="btGrid" style="display:flex;gap:4px;align-items:flex-end;height:96px"></div>
+    </div>
+
+    <!-- Campus-visit bookings -->
+    <div class="panel">
+      <b>Campus-visit bookings</b> <span id="bkCount" class="muted" style="font-size:13.5px"></span>
+      <div class="help">When a parent agrees to a visit, it lands here for a counsellor to confirm. Download the <code>.ics</code> to drop the slot into your own calendar — Sneha never writes to it directly, so no double-booking.</div>
+      <div id="bkList"></div>
+    </div>
   </div>
 
 <script>
@@ -90,20 +154,21 @@ async function load() {
   if (!d) { document.getElementById('sub').textContent = 'Server unreachable.'; return; }
   const s = d.stats;
   document.getElementById('sub').textContent = `${s.totalLeads} leads · ${s.totalCalls} calls · updated ${new Date().toLocaleTimeString()}`;
-  // Funnel (M9): enquiry → contacted → conversation → visit → admitted
   document.getElementById('cards').innerHTML = [
     ['Enquiries', f.enquiries ?? s.totalLeads], ['Contacted', f.contacted ?? 0], ['Conversations', f.conversations ?? s.totalCalls],
     ['Hot', s.hot], ['Visits', f.visitsBooked ?? s.visitsBooked], ['Admitted', f.admitted ?? 0],
   ].map(([l,n]) => `<div class="card"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
   const rows = d.leads.map(l => `<tr>
-    <td><b>${l.parentName||'—'}</b><br><span class="muted">${l.studentName||''}${l.area?' · '+l.area:''}</span></td>
-    <td>${l.interestStream||'—'}</td>
-    <td><span class="pill ${l.interest||'unknown'}">${l.interest||'—'}</span></td>
+    <td class="trunc"><b>${l.parentName||'—'}</b><br><span class="muted" style="font-size:13px">${l.studentName||''}${l.area?' · '+l.area:''}</span></td>
+    <td class="trunc">${l.interestStream||'—'}</td>
+    <td><span class="pill pill--${l.interest||'unknown'}">${l.interest||'unknown'}</span></td>
     <td>${moodBadge(l.sentiment)}</td>
-    <td>${l.appointment&&l.appointment.booked ? '<span class="book">✓ '+(l.appointment.when||'booked')+'</span>' : '<span class="muted">—</span>'}</td>
-    <td><button onclick="showDocs('${l.id}','${(l.parentName||'').replace(/'/g,'')}')" style="background:#2a3150;color:var(--txt);border:0;border-radius:6px;padding:3px 9px;cursor:pointer">📄</button></td>
-    <td>${l.calls||0}</td>
-    <td class="muted">${l.nextAction||''}</td>
+    <td class="trunc">${l.appointment&&l.appointment.booked ? '<span class="book">'+(l.appointment.when||'booked')+'</span>' : '<span class="muted">—</span>'}</td>
+    <td><button class="btn btn--ghost btn--sm" style="min-height:32px;padding:0 10px" title="Document checklist"
+        onclick="showDocs('${l.id}','${(l.parentName||'').replace(/'/g,'')}')" aria-label="Document checklist">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></button></td>
+    <td class="mono">${l.calls||0}</td>
+    <td class="muted trunc" style="font-size:13.5px" title="${(l.nextAction||'').replace(/"/g,'&quot;')}">${l.nextAction||'—'}</td>
   </tr>`).join('');
   document.getElementById('rows').innerHTML = rows || '<tr><td colspan="8" class="empty">No leads yet — complete a call to see it here.</td></tr>';
 }
@@ -111,10 +176,31 @@ load();
 loadBestTime();
 loadBookings();
 
-// Parent-mood badge (structured extraction). Colour-coded so an unhappy call is spottable.
+// File pickers: styled label drives the hidden input; supports click AND drag-drop.
+function wireFilePick(inputId, nameId) {
+  const input = document.getElementById(inputId);
+  const zone = input.closest('.filepick');
+  const name = document.getElementById(nameId);
+  const show = () => { name.textContent = input.files[0] ? input.files[0].name : 'No file chosen'; };
+  input.addEventListener('change', show);
+  ['dragenter', 'dragover'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.add('is-drag'); }));
+  ['dragleave', 'drop'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.remove('is-drag'); }));
+  zone.addEventListener('drop', ev => {
+    const f = ev.dataTransfer.files[0];
+    if (!f) return;
+    const dt = new DataTransfer(); dt.items.add(f);
+    input.files = dt.files; show();
+  });
+}
+wireFilePick('csvFile', 'csvName');
+wireFilePick('rosterFile', 'rosterName');
+
+// Parent-mood badge — colour dot + label (no emoji: emoji-as-icon reads unprofessional).
 function moodBadge(s) {
-  const m = { positive: ['🙂', '#1f8a4c'], neutral: ['😐', '#5b6478'], negative: ['🙁', '#b4531f'], frustrated: ['😠', '#b3261e'] }[s];
-  return m ? `<span title="${s}" style="color:${m[1]};font-weight:600">${m[0]} ${s}</span>` : '<span class="muted">—</span>';
+  const m = { positive:['var(--ok)','positive'], neutral:['var(--ink-faint)','neutral'],
+              negative:['var(--warm)','negative'], frustrated:['var(--hot)','frustrated'] }[s];
+  return m ? `<span class="mood" title="${m[1]}" style="color:${m[0]}"><i style="background:${m[0]}"></i>${m[1]}</span>`
+           : '<span class="muted">—</span>';
 }
 
 // Campus-visit bookings + one-click .ics download (data-URI, no extra endpoint).
@@ -127,10 +213,11 @@ async function loadBookings() {
   list.innerHTML = d.bookings.map(b => {
     const href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(b.ics);
     const file = `visit-${(b.student||'student').replace(/\s+/g,'_')}.ics`;
-    return `<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--line)">
-      <b>${b.student||'—'}</b> <span class="muted">${b.parent||''} · ${b.phone||''}</span>
-      <span class="book" style="margin-left:auto">🗓 ${b.when||'time to confirm'}</span>
-      <a href="${href}" download="${file}" style="background:#2a3150;color:var(--txt);text-decoration:none;border-radius:6px;padding:3px 10px;font-size:13px">⬇ .ics</a>
+    return `<div class="bk-row">
+      <b>${b.student||'—'}</b> <span class="muted" style="font-size:13.5px">${b.parent||''} · ${b.phone||''}</span>
+      <span class="book" style="margin-left:auto">${b.when||'time to confirm'}</span>
+      <a class="btn btn--ghost btn--sm" style="min-height:32px;text-decoration:none" href="${href}" download="${file}">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg> .ics</a>
     </div>`;
   }).join('');
 }
@@ -142,11 +229,11 @@ async function loadBestTime() {
   document.getElementById('btSamples').textContent = `(${d.samples} dials logged)`;
   const cell = (h) => {
     const rate = h.connectRate;
-    const ht = rate == null ? 4 : Math.max(4, rate * 0.8);
-    const col = rate == null ? '#2a3150' : rate >= 50 ? 'var(--ok)' : rate >= 25 ? 'var(--warm)' : 'var(--hot)';
-    return `<div style="flex:1;text-align:center">
+    const ht = rate == null ? 4 : Math.max(4, rate * 0.85);
+    const col = rate == null ? 'var(--paper-3)' : rate >= 50 ? 'var(--ok)' : rate >= 25 ? 'var(--warm)' : 'var(--hot)';
+    return `<div class="bt-bar">
       <div title="${rate == null ? 'no data' : rate + '% connect'}" style="height:${ht}px;background:${col};border-radius:3px 3px 0 0"></div>
-      <div class="muted" style="font-size:9px;margin-top:2px">${h.hour}</div></div>`;
+      <div class="muted mono" style="font-size:10px;margin-top:3px">${h.hour}</div></div>`;
   };
   document.getElementById('btGrid').innerHTML = d.hours.filter(h => h.hour >= 8 && h.hour <= 21).map(cell).join('');
 }
@@ -154,7 +241,7 @@ async function loadBestTime() {
 // Dept 6: document checklist — view + mark received (humans verify, no OCR).
 async function showDocs(leadId, name) {
   const st = await fetch('/api/documents?leadId=' + encodeURIComponent(leadId)).then(r => r.json());
-  const lines = st.map(d => `${d.received ? '✅' : '⬜'} ${d.doc}`).join('\n');
+  const lines = st.map(d => `${d.received ? '[x]' : '[ ]'} ${d.doc}`).join('\n');
   const toMark = prompt(`Documents for ${name}:\n\n${lines}\n\nType the EXACT document name to toggle received, or Cancel.`, '');
   if (!toMark) return;
   const doc = st.find(d => d.doc.toLowerCase() === toMark.trim().toLowerCase());

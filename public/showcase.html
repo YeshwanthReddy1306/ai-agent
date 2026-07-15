@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admissions AI — the admissions office, automated</title>
+<link rel="stylesheet" href="/tokens.css" />
+<link rel="stylesheet" href="/ui.css" />
+<style>
+/* ---------- act rail ---------- */
+.rail{position:fixed;left:26px;top:50%;transform:translateY(-50%);z-index:var(--z-rail);
+  display:flex;flex-direction:column;gap:18px}
+.rail a{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;
+  letter-spacing:.1em;color:var(--ink-faint);text-decoration:none;transition:color var(--dur-1)}
+.rail a::before{content:"";width:14px;height:1.5px;background:var(--line);transition:background var(--dur-1),width var(--dur-1)}
+.rail a.on{color:var(--accent)} .rail a.on::before{background:var(--accent);width:22px}
+.rail a:hover{color:var(--ink)}
+@media(max-width:900px){.rail{display:none}}
+
+/* ---------- masthead ---------- */
+.mast{position:sticky;top:0;z-index:var(--z-mast);background:color-mix(in oklch,var(--paper) 90%,transparent);
+  backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.mast .wrap{display:flex;align-items:center;justify-content:space-between;height:66px;gap:var(--s4)}
+.mast-right{display:flex;align-items:center;gap:var(--s4)}
+.toggle{display:inline-flex;align-items:center;gap:9px;font-size:13.5px;color:var(--ink-soft);
+  cursor:pointer;user-select:none;background:none;border:none;font-family:var(--sans);min-height:44px}
+.sw{width:38px;height:22px;border-radius:20px;background:var(--paper-3);border:1px solid var(--line);
+  position:relative;transition:background var(--dur-1)}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform var(--dur-1) var(--ease)}
+.toggle[aria-pressed=true] .sw{background:var(--accent)}
+.toggle[aria-pressed=true] .sw::after{transform:translateX(16px)}
+
+/* ---------- preflight strip ---------- */
+.preflight{border-bottom:1px solid var(--line);background:var(--paper-2)}
+.preflight .wrap{display:flex;align-items:center;gap:var(--s3);padding-top:10px;padding-bottom:10px;flex-wrap:wrap}
+.pf-chip{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11.5px;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
+.pf-chip i{width:8px;height:8px;border-radius:50%;background:var(--ink-faint);flex:none}
+.pf-chip.ok i{background:var(--ok);box-shadow:0 0 0 3px color-mix(in oklch,var(--ok) 20%,transparent)}
+.pf-chip.bad i{background:var(--hot);box-shadow:0 0 0 3px color-mix(in oklch,var(--hot) 20%,transparent)}
+.pf-chip.bad{color:var(--hot)}
+.pf-fix{font-size:13px;color:var(--hot);flex-basis:100%}
+
+/* ---------- acts ---------- */
+.act{padding:var(--s7) 0}
+.act01 .hero-h{font-size:var(--t-hero);max-width:15ch;margin:var(--s4) 0}
+.act01 .hero-h em{font-style:normal;color:var(--accent)}
+.hero-sub{font-size:1.18rem;color:var(--ink-soft);max-width:54ch;margin-bottom:var(--s6)}
+
+/* ---------- bento ---------- */
+.bento{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;grid-auto-rows:134px}
+.tile{background:var(--paper-2);border:1px solid var(--line);border-radius:var(--r-md);padding:19px 21px;
+  position:relative;overflow:hidden;cursor:pointer;text-align:left;font-family:var(--sans);
+  display:flex;flex-direction:column;justify-content:space-between;
+  transition:border-color var(--dur-1),transform var(--dur-1) var(--ease)}
+.tile::before{content:"";position:absolute;inset:0 0 auto 0;height:2px;background:var(--line);transition:background var(--dur-2)}
+.tile.live::before{background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+.tile:hover{border-color:var(--ink);transform:translateY(-2px)}
+.tile:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tile .dept{font-size:13px;font-weight:600;color:var(--ink)}
+.tile .sneha{font-size:12.5px;color:var(--ink-faint);margin-top:3px}
+.tile .metric{font-family:var(--mono);font-weight:500;line-height:1;color:var(--ink);font-size:1.7rem}
+.tile .metric small{display:block;font-family:var(--sans);font-weight:400;font-size:11px;
+  color:var(--ink-soft);margin-top:5px;letter-spacing:.02em}
+.tile .tag{position:absolute;top:15px;right:17px}
+.tile--hero{grid-column:span 2;grid-row:span 2}
+.tile--hero .metric{font-size:var(--t-num);color:var(--accent)}
+.tile--med{grid-column:span 2}
+.tile--med .metric{font-size:2.2rem}
+.spark{display:flex;align-items:flex-end;gap:4px;height:46px;margin-top:auto}
+.spark i{flex:1;background:color-mix(in oklch,var(--accent) 28%,transparent);border-radius:2px 2px 0 0;min-height:3px}
+@media(max-width:900px){.bento{grid-template-columns:repeat(2,minmax(0,1fr))}.tile--hero{grid-column:span 2}.tile--med{grid-column:span 1}}
+@media(max-width:560px){.bento{grid-template-columns:minmax(0,1fr);grid-auto-rows:120px}.tile--hero,.tile--med{grid-column:span 1}.tile--hero{grid-row:span 2}}
+
+/* ---------- act 02 — the dark stage ---------- */
+.act02{background:var(--stage);color:var(--stage-ink)}
+.act02 .eyebrow{color:var(--accent-2)}
+.act02 h2{font-size:var(--t-act);color:var(--stage-ink);max-width:20ch;margin:var(--s4) 0 var(--s5)}
+.leads{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:var(--s5);justify-content:center}
+.lead{display:inline-flex;align-items:center;gap:9px;background:var(--stage-2);border:1px solid var(--stage-line);
+  border-radius:var(--r-sm);padding:10px 14px;font-size:13.5px;color:var(--stage-ink);cursor:pointer;
+  font-family:var(--sans);min-height:44px;transition:border-color var(--dur-1)}
+.lead:hover{border-color:var(--stage-soft)}
+.lead[aria-selected=true]{border-color:var(--accent-2)}
+.lead .lg{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--stage-soft);
+  border:1px solid var(--stage-line);border-radius:5px;padding:1px 5px}
+.stage-col{display:flex;flex-direction:column;align-items:center;gap:var(--s5)}
+.stage-viz{display:flex;flex-direction:column;align-items:center;gap:11px}
+.capsule{width:44px;height:44px;border-radius:12px;border:1.5px solid oklch(92% 0.008 60);
+  display:grid;place-items:center;transition:border-color var(--dur-2),box-shadow var(--dur-2)}
+.diamond{width:17px;height:17px;border-radius:4px;background:oklch(96% 0.006 60);transform:rotate(18deg);
+  transition:background var(--dur-2)}
+.stage-viz.speaking .capsule{border-color:var(--accent-2);box-shadow:0 0 40px -10px color-mix(in oklch,var(--accent-2) 70%,transparent)}
+.stage-viz.speaking .diamond{background:var(--accent-2);animation:spin 2.6s linear infinite}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.st-timer{font-family:var(--mono);font-size:15px;letter-spacing:.05em;color:var(--stage-ink)}
+.wave{display:flex;align-items:center;gap:3px;height:26px}
+.wave i{width:3px;border-radius:2px;background:var(--stage-soft);height:18%}
+.stage-viz.listening .wave i{background:oklch(90% 0.008 60);animation:eq .9s var(--ease) infinite}
+.stage-viz.speaking .wave i{background:color-mix(in oklch,var(--accent-2) 65%,transparent);height:22%}
+@keyframes eq{0%,100%{height:16%}50%{height:95%}}
+.st-label{font-size:14.5px;color:var(--stage-soft)}
+.emochip{font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--stage-soft)}
+.emochip u{text-decoration:none;color:var(--accent-2)}
+.transcript{background:var(--stage-2);border:1px solid var(--stage-line);border-radius:var(--r-lg);
+  padding:var(--s4);width:100%;max-width:640px;min-height:190px;max-height:440px;overflow:auto}
+.tr-head{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--stage-soft);margin-bottom:var(--s3)}
+.turn{margin-bottom:15px;font-size:14.5px;line-height:1.55}
+.turn .who{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;margin-bottom:3px}
+.turn.p,.turn.p .who{color:var(--stage-soft)}
+.turn.a{color:var(--stage-ink)} .turn.a .who{color:var(--accent-2)}
+.turn .emo{font-family:var(--mono);font-size:10px;color:var(--accent-2);margin-left:8px}
+.switch{position:relative;text-align:center;font-family:var(--mono);font-size:11px;
+  color:var(--accent-2);margin:16px 0}
+.switch::before,.switch::after{content:"";position:absolute;top:50%;width:24%;height:1px;background:var(--stage-line)}
+.switch::before{left:0}.switch::after{right:0}
+.stage-empty{color:var(--stage-soft);text-align:center;padding:var(--s5) 0;font-size:14.5px}
+
+/* ---------- act 03 / 04 ---------- */
+.act03 .ripple{max-width:760px}
+.act04 .tiers{display:flex;gap:8px;margin:var(--s4) 0}
+.tier{background:none;border:none;border-bottom:2px solid transparent;padding:8px 4px;min-height:44px;
+  font-family:var(--sans);font-size:15px;color:var(--ink-soft);cursor:pointer}
+.tier[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+.placeholder{color:var(--ink-faint);font-size:14.5px;padding:var(--s5) 0;border-top:1px solid var(--line)}
+
+.foot{border-top:1px solid var(--line);padding:var(--s5) 0;color:var(--ink-faint);font-size:13px}
+
+/* ---------- act 04 the case ---------- */
+.case-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--s5);margin-bottom:var(--s6)}
+@media(max-width:900px){.case-grid{grid-template-columns:1fr}}
+.panel-h{font-family:var(--serif);font-size:1.2rem;font-weight:600;margin-bottom:4px}
+.panel-s{font-size:13px;color:var(--ink-soft);margin-bottom:var(--s3)}
+.fun-row{display:grid;grid-template-columns:120px 1fr 46px;align-items:center;gap:12px;margin-bottom:9px}
+.fun-row .fl{font-size:13.5px;color:var(--ink-soft)}
+.fun-row .fb{height:26px;border-radius:5px;background:color-mix(in oklch,var(--accent) 18%,transparent);position:relative;overflow:hidden}
+.fun-row .fb i{position:absolute;inset:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  transform-origin:left;transform:scaleX(0);transition:transform 900ms var(--ease)}
+.fun-row .fn{font-family:var(--mono);font-size:14px;text-align:right}
+.bt{display:flex;gap:4px;align-items:flex-end;height:110px}
+.bt-b{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}
+.bt-b .bar{width:100%;border-radius:3px 3px 0 0;min-height:3px}
+.bt-b .hr{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint)}
+/* wide content scrolls inside its own box instead of clipping under body's overflow-x:clip */
+#case{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.cost{width:100%;min-width:440px;border-collapse:separate;border-spacing:0;border:1px solid var(--line);
+  border-radius:var(--r-md);background:var(--paper-2)}
+table.cost th,table.cost td{text-align:left;padding:13px 16px;border-bottom:1px solid var(--line);font-size:14.5px}
+table.cost thead th{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-soft);background:var(--paper-3)}
+table.cost thead th:first-child{border-top-left-radius:var(--r-md)}
+table.cost thead th:last-child{border-top-right-radius:var(--r-md)}
+table.cost tbody tr:last-child td{border-bottom:none}
+table.cost td.num{font-family:var(--mono);text-align:right}
+table.cost tr.total td{font-weight:600;background:color-mix(in oklch,var(--accent) 5%,transparent)}
+table.cost tr.verdict td{font-weight:600}
+.saving{margin-top:var(--s5);padding:var(--s4);border-radius:var(--r-md);
+  background:color-mix(in oklch,var(--accent) 7%,transparent);border:1px solid color-mix(in oklch,var(--accent) 22%,transparent)}
+.saving .big{font-family:var(--mono);font-size:2.4rem;color:var(--accent);line-height:1.1}
+.legend{font-size:12.5px;color:var(--ink-faint);margin-top:var(--s3);line-height:1.6}
+
+/* ---------- print: Act 04 becomes a clean one-pager ---------- */
+@media print{
+  @page{size:A4;margin:16mm}
+  .rail,.mast,.preflight,.act01,.act02,.act03,.foot,.slideover,.backdrop,#printBtn,.tiers{display:none!important}
+  body{background:#fff;color:#000;font-size:11pt}
+  .act04{padding:0}
+  .act04 .eyebrow{color:#000}
+  table.cost{border:1px solid #999;break-inside:avoid}
+  table.cost thead th{background:#eee;color:#000}
+  .saving{border:1px solid #999;background:#f6f6f6;break-inside:avoid}
+  .case-grid{grid-template-columns:1fr 1fr;gap:10mm}
+  .reveal{opacity:1!important;transform:none!important}
+}
+
+/* ---------- act 03 ripple cascade ---------- */
+.rip{position:relative;padding-left:34px}
+.rip::before{content:"";position:absolute;left:8px;top:6px;bottom:6px;width:2px;
+  background:var(--line);transform-origin:top;transform:scaleY(0);transition:transform 1.6s var(--ease)}
+.rip.drawn::before{transform:scaleY(1)}
+.rip-row{position:relative;padding:14px 0;opacity:0;transform:translateY(10px);
+  transition:opacity var(--dur-2) var(--ease),transform var(--dur-2) var(--ease)}
+.rip-row.in{opacity:1;transform:none}
+.rip-row::before{content:"";position:absolute;left:-30px;top:20px;width:10px;height:10px;border-radius:50%;
+  background:var(--paper);border:2px solid var(--accent)}
+.rip-row .rip-t{font-family:var(--mono);font-size:11px;color:var(--ink-faint);letter-spacing:.06em}
+.rip-row .rip-h{font-weight:600;font-size:15.5px;margin-top:2px}
+.rip-art{margin-top:9px;background:var(--paper-2);border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:11px 13px;font-size:13.5px;color:var(--ink-soft);line-height:1.5}
+.rip-art b{color:var(--ink)}
+.rip-done{margin-top:var(--s5)}
+
+/* ---------- drill-over content ---------- */
+.d-row{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--line);font-size:14px}
+.d-row:first-of-type{border-top:none}
+.d-row .d-main{flex:1;min-width:0}
+.d-row b{font-weight:600}
+.d-meta{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);white-space:nowrap}
+.d-empty{color:var(--ink-faint);font-size:14px;padding:var(--s4) 0}
+/* WhatsApp-ish message bubble (our own drawing — no fake app chrome) */
+.msg{background:color-mix(in oklch,var(--ok) 12%,var(--paper-2));border:1px solid color-mix(in oklch,var(--ok) 28%,transparent);
+  border-radius:12px 12px 12px 3px;padding:11px 13px;font-size:14px;line-height:1.45;margin:9px 0}
+.msg .msg-to{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-faint);margin-bottom:4px}
+/* document checklist */
+.doc{display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid var(--line)}
+.doc:first-child{border-top:none}
+.doc .box{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--line);display:grid;place-items:center;flex:none}
+.doc.got .box{background:var(--ok);border-color:var(--ok);color:#fff}
+.doc .name{flex:1;font-size:14px}
+/* enquiry form inside the drill */
+.f-field{margin-bottom:var(--s3)}
+.f-field label{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:5px}
+.f-field input,.f-field select{width:100%;min-height:44px;padding:9px 12px;border-radius:var(--r-sm);
+  border:1px solid var(--line);background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px}
+.f-field input:focus-visible,.f-field select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+/* small screens: the wordmark's client-line and the toggle label are the first things to go,
+   so the masthead never clips (the switch itself keeps its accessible name). */
+@media(max-width:640px){
+  .wordmark b{font-size:18px}
+  .wordmark span{display:none}
+  .toggle .t-label{display:none}
+  .mast .wrap{gap:var(--s2)}
+  .preflight .wrap{gap:var(--s2)}
+  .pf-chip{font-size:10.5px}
+}
+</style>
+</head>
+<body>
+
+<!-- act rail -->
+<nav class="rail" aria-label="Sections">
+  <a href="#act01" data-act="act01" class="on">01</a>
+  <a href="#act02" data-act="act02">02</a>
+  <a href="#act03" data-act="act03">03</a>
+  <a href="#act04" data-act="act04">04</a>
+</nav>
+
+<!-- masthead -->
+<header class="mast">
+  <div class="wrap">
+    <a class="wordmark" href="/showcase.html" aria-label="Admissions AI — home"><b></b><span></span></a>
+    <div class="mast-right">
+      <button class="toggle" id="sampleToggle" aria-pressed="false" aria-label="Toggle sample data">
+        <span class="t-label">Sample data</span><span class="sw" aria-hidden="true"></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- preflight (presenter's 10-second confidence check) -->
+<div class="preflight">
+  <div class="wrap">
+    <span class="pf-chip" id="pfServer"><i></i>server</span>
+    <span class="pf-chip" id="pfVoice"><i></i>voice</span>
+    <span class="pf-chip" id="pfMic"><i></i>microphone</span>
+    <button class="btn btn--ghost" style="min-height:32px;padding:0 12px;font-size:13px;margin-left:auto" id="pfRun">Run checks</button>
+    <div class="pf-fix hidden" id="pfFix"></div>
+  </div>
+</div>
+
+<!-- ============ ACT 01 — the wall ============ -->
+<section class="act act01" id="act01">
+  <div class="wrap">
+    <p class="eyebrow reveal">01 — The admissions office</p>
+    <h1 class="hero-h reveal">Your entire admissions office. <em>One system.</em></h1>
+    <p class="hero-sub reveal">Twelve departments. One senior counsellor named Sneha — she remembers every family,
+      speaks Telugu, Hindi or English, and never goes home.</p>
+
+    <div class="bento" id="bento">
+      <!-- tiles injected by showcase.js from live APIs -->
+    </div>
+
+    <div style="margin-top:var(--s6)" class="reveal">
+      <button class="btn" id="beginDemo">Begin the demonstration</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ACT 02 — the call ============ -->
+<section class="act act02" id="act02">
+  <div class="wrap">
+    <p class="eyebrow reveal">02 — The call</p>
+    <h2 class="reveal">Watch her handle a real objection. Live.</h2>
+
+    <div class="leads reveal" id="leadChips" role="tablist" aria-label="Choose a family to call"></div>
+
+    <div class="stage-col">
+      <div class="stage-viz reveal" id="viz">
+        <div class="capsule"><div class="diamond"></div></div>
+        <div class="st-timer mono" id="stTimer">00:00</div>
+        <div class="wave" id="wave" aria-hidden="true"></div>
+        <div class="st-label" id="stLabel">Ready</div>
+      </div>
+      <div class="emochip reveal">emotion · <u id="emo">—</u></div>
+      <div class="reveal">
+        <button class="btn" id="callBtn">Call Sneha</button>
+      </div>
+      <div class="transcript reveal" id="transcript">
+        <div class="tr-head"><span>Live transcript</span><span id="trAgent">Sneha</span></div>
+        <div class="stage-empty" id="trEmpty">Choose a family above, then start the call.</div>
+        <div id="turns"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ACT 03 — the ripple ============ -->
+<section class="act act03" id="act03">
+  <div class="wrap">
+    <p class="eyebrow reveal">03 — The ripple</p>
+    <h2 style="font-size:var(--t-act);max-width:18ch;margin:var(--s4) 0" class="reveal">
+      The call ended. <em style="font-style:normal;color:var(--accent)">Nobody typed anything.</em></h2>
+    <div class="ripple" id="ripple">
+      <p class="placeholder">Finish a call in Act 02 — every automation it triggers appears here, in order, with the real artifact it produced.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ACT 04 — the case ============ -->
+<section class="act act04" id="act04">
+  <div class="wrap">
+    <p class="eyebrow reveal">04 — The case</p>
+    <h2 style="font-size:var(--t-act);max-width:18ch;margin:var(--s4) 0" class="reveal">What it costs. What it replaces.</h2>
+    <div class="case-grid reveal">
+      <div>
+        <div class="panel-h">The funnel, right now</div>
+        <div class="panel-s">Live from the system — every stage Sneha moved a family through.</div>
+        <div id="funnel"></div>
+      </div>
+      <div>
+        <div class="panel-h">When families actually pick up</div>
+        <div class="panel-s">Connect-rate by hour. Retries target the greenest slot automatically.</div>
+        <div class="bt" id="btChart"></div>
+      </div>
+    </div>
+
+    <div class="panel-h">What it costs to replace the team</div>
+    <div class="panel-s">Pick the team size you'd be replacing.</div>
+    <div class="tiers" role="tablist" aria-label="Team size">
+      <button class="tier" role="tab" aria-selected="true" data-tier="5">5-member</button>
+      <button class="tier" role="tab" aria-selected="false" data-tier="15">15-member</button>
+      <button class="tier" role="tab" aria-selected="false" data-tier="30">30-member</button>
+    </div>
+    <div id="case"></div>
+
+    <div style="margin-top:var(--s5)">
+      <button class="btn btn--ghost" id="printBtn">Print this page</button>
+    </div>
+  </div>
+</section>
+
+<!-- drill-down slide-over: one component, every department reuses it -->
+<div class="backdrop" id="backdrop"></div>
+<aside class="slideover" id="drill" role="dialog" aria-modal="true" aria-labelledby="drillTitle" tabindex="-1">
+  <button class="close" id="drillClose" aria-label="Close">&times;</button>
+  <p class="eyebrow" id="drillEyebrow">Department</p>
+  <h3 id="drillTitle">—</h3>
+  <p class="muted" id="drillSub" style="font-size:14px;margin-bottom:var(--s4)"></p>
+  <div id="drillBody"></div>
+</aside>
+
+<footer class="foot"><div class="wrap">
+  <span class="wordmark" style="font-size:13px"><b></b></span> ·
+  <span class="muted">every number on this page is live from the system — sample rows are labelled</span>
+</div></footer>
+
+<script src="/call-engine.js"></script>
+<script src="/showcase.js"></script>
+</body>
+</html>

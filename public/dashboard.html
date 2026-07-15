@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admissions AI — Operations</title>
+<link rel="stylesheet" href="/tokens.css" />
+<link rel="stylesheet" href="/ui.css" />
+<style>
+body{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+
+/* ---------- left rail ---------- */
+.side{border-right:1px solid var(--line);background:var(--paper-2);padding:var(--s4) 0;
+  position:sticky;top:0;height:100vh;overflow-y:auto}
+.side .brand{padding:0 var(--s4) var(--s4);border-bottom:1px solid var(--line);margin-bottom:var(--s3)}
+.side .brand b{font-family:var(--serif);font-weight:700;font-size:19px;display:block}
+.side .brand span{font-size:11.5px;color:var(--ink-faint)}
+.nav{display:flex;flex-direction:column;gap:2px;padding:0 10px}
+.nav a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--r-sm);
+  color:var(--ink-soft);text-decoration:none;font-size:14.5px;min-height:44px;
+  transition:background var(--dur-1),color var(--dur-1)}
+.nav a:hover{background:var(--paper-3);color:var(--ink)}
+.nav a.on{background:color-mix(in oklch,var(--accent) 12%,transparent);color:var(--accent);font-weight:600}
+.nav a .ico{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7;flex:none}
+.nav a .cnt{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--ink-faint)}
+.nav a.on .cnt{color:var(--accent)}
+.side .foot{padding:var(--s4);margin-top:var(--s4);border-top:1px solid var(--line);
+  font-size:12px;color:var(--ink-faint)}
+.side .foot a{color:var(--accent)}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--ink-faint)}
+.dot.ok{background:var(--ok)} .dot.bad{background:var(--hot)}
+
+/* ---------- main ---------- */
+.main{padding:var(--s5) var(--s5) var(--s7);max-width:1180px}
+.page-h{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--s4);margin-bottom:var(--s5);flex-wrap:wrap}
+.page-h h1{font-size:2.1rem}
+.page-h .sub{font-size:14px;color:var(--ink-soft);font-family:var(--mono);margin-top:3px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:var(--s5)}
+.stat{background:var(--paper-2);border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px}
+.stat .n{font-family:var(--mono);font-size:1.9rem;color:var(--accent);line-height:1.1}
+.stat .l{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+.panel{background:var(--paper-2);border:1px solid var(--line);border-radius:var(--r-md);padding:var(--s4);margin-bottom:var(--s5)}
+.panel > h2{font-family:var(--serif);font-size:1.2rem;margin-bottom:3px}
+.panel .help{font-size:13px;color:var(--ink-soft);margin-bottom:var(--s3)}
+
+/* ---------- toolbar (search + filters) ---------- */
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:var(--s3)}
+.toolbar input[type=search],.toolbar select{min-height:42px;padding:8px 12px;border-radius:var(--r-sm);
+  border:1px solid var(--line);background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14.5px}
+.toolbar input[type=search]{flex:1;min-width:200px}
+.toolbar input:focus-visible,.toolbar select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.count{font-family:var(--mono);font-size:12.5px;color:var(--ink-faint);margin-left:auto}
+
+/* ---------- table ---------- */
+table{width:100%;border-collapse:separate;border-spacing:0;background:var(--paper-2);
+  border:1px solid var(--line);border-radius:var(--r-md);table-layout:fixed}
+thead th{position:sticky;top:0;background:var(--paper-3);z-index:5;box-shadow:0 1px 0 var(--line);white-space:nowrap;
+  font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);font-weight:600}
+thead th:first-child{border-top-left-radius:var(--r-md)} thead th:last-child{border-top-right-radius:var(--r-md)}
+th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--line);font-size:14.5px;vertical-align:middle}
+tbody tr{transition:background var(--dur-1)} tbody tr:hover{background:var(--paper-3)}
+tbody tr:last-child td{border-bottom:none}
+td.trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty{text-align:center;color:var(--ink-faint);padding:var(--s6)}
+.mood{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:13.5px}
+.mood i{width:8px;height:8px;border-radius:50%}
+.ico-sm{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;vertical-align:-2px}
+
+/* ---------- pagination ---------- */
+.pager{display:flex;align-items:center;gap:8px;margin-top:var(--s3);justify-content:flex-end}
+.pager button{min-height:38px;padding:0 12px}
+.pager .pg{font-family:var(--mono);font-size:13px;color:var(--ink-soft)}
+
+/* ---------- misc ---------- */
+.bt{display:flex;gap:4px;align-items:flex-end;height:100px}
+.bt-b{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}
+.bt-b .bar{width:100%;border-radius:3px 3px 0 0;min-height:3px}
+.bt-b .hr{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint)}
+.fun-row{display:grid;grid-template-columns:118px 1fr 44px;align-items:center;gap:12px;margin-bottom:8px}
+.fun-row .fl{font-size:13.5px;color:var(--ink-soft)}
+.fun-row .fb{height:24px;border-radius:5px;background:color-mix(in oklch,var(--accent) 16%,transparent);overflow:hidden}
+.fun-row .fb i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+.fun-row .fn{font-family:var(--mono);font-size:14px;text-align:right}
+.warn{background:color-mix(in oklch,var(--warm) 16%,transparent);border:1px solid color-mix(in oklch,var(--warm) 40%,transparent);
+  border-radius:var(--r-sm);padding:11px 14px;font-size:13.5px;margin-bottom:var(--s4)}
+.warn b{color:var(--ink)}
+.doc{display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid var(--line)}
+.doc:first-child{border-top:none}
+.doc .box{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--line);display:grid;place-items:center;flex:none;font-size:11px}
+.doc.got .box{background:var(--ok);border-color:var(--ok);color:#fff}
+.doc .name{flex:1;font-size:14px}
+.d-row{display:flex;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--line);font-size:14px;flex-wrap:wrap}
+.d-row:first-child{border-top:none}
+.d-row .d-main{flex:1;min-width:0}
+.d-meta{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint)}
+
+@media(max-width:860px){
+  body{grid-template-columns:1fr}
+  .side{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line)}
+  .nav{flex-direction:row;overflow-x:auto}
+  .nav a .cnt{display:none}
+  .main{padding:var(--s4)}
+}
+</style>
+</head>
+<body>
+
+<aside class="side">
+  <div class="brand"><b id="bName"></b><span id="bClient"></span></div>
+  <nav class="nav" id="nav">
+    <a href="#/overview" data-r="overview">
+      <svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg> Overview</a>
+    <a href="#/leads" data-r="leads">
+      <svg class="ico" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg> Leads <span class="cnt" id="cLeads"></span></a>
+    <a href="#/visits" data-r="visits">
+      <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Visits <span class="cnt" id="cVisits"></span></a>
+    <a href="#/followups" data-r="followups">
+      <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Follow-ups <span class="cnt" id="cFollow"></span></a>
+    <a href="#/post" data-r="post">
+      <svg class="ico" viewBox="0 0 24 24"><path d="M4 4h16v12H5.17L4 17.17z"/></svg> Post-admission <span class="cnt" id="cPost"></span></a>
+  </nav>
+  <div class="foot">
+    <div><span class="dot" id="hDot"></span> <span id="hText">checking…</span></div>
+    <div style="margin-top:8px"><a href="/showcase.html">Pitch view →</a></div>
+    <div style="margin-top:4px"><a href="/index.html">Call console →</a></div>
+  </div>
+</aside>
+
+<main class="main" id="main"><p class="empty">Loading…</p></main>
+
+<!-- shared slide-over (documents, lead detail) -->
+<div class="backdrop" id="backdrop"></div>
+<aside class="slideover" id="drill" role="dialog" aria-modal="true" aria-labelledby="drillTitle" tabindex="-1">
+  <button class="close" id="drillClose" aria-label="Close">&times;</button>
+  <p class="eyebrow" id="drillEyebrow">Detail</p>
+  <h3 id="drillTitle">—</h3>
+  <p class="muted" id="drillSub" style="font-size:14px;margin-bottom:var(--s4)"></p>
+  <div id="drillBody"></div>
+</aside>
+
+<script src="/dashboard.js"></script>
+</body>
+</html>

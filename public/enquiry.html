@@ -4,47 +4,94 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Enquire — Resonance Hyderabad</title>
+<link rel="stylesheet" href="/tokens.css" />
+<link rel="stylesheet" href="/ui.css" />
 <style>
-  :root{--bg:#0b1020;--card:#141b33;--line:#242c4a;--txt:#e8ecfb;--mut:#8b93b7;--ok:#3ddc84;--acc:#4aa3ff}
-  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.5 system-ui,Segoe UI,Roboto,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:20px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px;max-width:420px;width:100%}
-  h1{margin:0 0 4px;font-size:22px} .sub{color:var(--mut);margin-bottom:18px;font-size:14px}
-  label{display:block;font-size:13px;color:var(--mut);margin:12px 0 4px}
-  input,select{width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--line);background:#0b1020;color:var(--txt);font-size:15px}
-  button{width:100%;margin-top:18px;background:var(--acc);color:#04101f;border:0;border-radius:10px;padding:12px;font-weight:700;font-size:16px;cursor:pointer}
-  .msg{margin-top:14px;text-align:center;font-size:15px} .ok{color:var(--ok)}
-  .row{display:flex;gap:10px} .row>div{flex:1}
+  body{display:flex;min-height:100vh;align-items:center;justify-content:center;padding:20px;
+    background:
+      radial-gradient(1200px 500px at 50% -10%, color-mix(in oklch,var(--accent) 8%,transparent), transparent),
+      var(--paper);}
+  .card{background:var(--paper-2);border:1px solid var(--line);border-radius:var(--r-lg);
+    padding:var(--s5);max-width:440px;width:100%;box-shadow:0 24px 60px -30px color-mix(in oklch,var(--ink) 30%,transparent)}
+  h1{font-size:clamp(1.7rem,5vw,2.2rem);margin-bottom:6px}
+  h1 em{font-style:normal;color:var(--accent)}
+  .sub{color:var(--ink-soft);margin-bottom:var(--s4);font-size:14.5px}
+  label{display:block;font-size:12.5px;color:var(--ink-soft);margin:14px 0 5px;font-weight:500}
+  label .req{color:var(--accent)}
+  input,select{width:100%;min-height:46px;padding:11px 13px;border-radius:var(--r-sm);
+    border:1px solid var(--line);background:var(--paper);color:var(--ink);
+    font-family:var(--sans);font-size:16px;transition:border-color var(--dur-1)}
+  input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+  input.invalid{border-color:var(--hot)}
+  .err{color:var(--hot);font-size:12.5px;margin-top:4px;min-height:0}
+  .row{display:flex;gap:12px}.row>div{flex:1;min-width:0}
+  .btn{width:100%;margin-top:var(--s4)}
+  .msg{margin-top:var(--s3);text-align:center;font-size:15px}
+  .msg.ok{color:var(--ok)} .msg.bad{color:var(--hot)}
+  .trust{margin-top:var(--s4);text-align:center;font-size:12.5px;color:var(--ink-faint)}
 </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Admissions Enquiry</h1>
-    <div class="sub">Resonance Hyderabad — IIT-JEE / NEET integrated intermediate. We'll call you within minutes.</div>
-    <label>Parent name *</label><input id="parentName" placeholder="Your name" />
-    <label>Phone number *</label><input id="phone" placeholder="10-digit mobile" inputmode="numeric" />
-    <label>Student name</label><input id="studentName" placeholder="Your child's name" />
+  <main class="card">
+    <h1>We'll call you <em>within minutes.</em></h1>
+    <div class="sub">Resonance Hyderabad — IIT-JEE / NEET integrated Intermediate. Tell us a little, and Sneha rings you back.</div>
+
+    <label for="parentName">Parent name <span class="req">*</span></label>
+    <input id="parentName" placeholder="Your name" autocomplete="name" />
+    <div class="err" id="err-parentName"></div>
+
+    <label for="phone">Phone number <span class="req">*</span></label>
+    <input id="phone" placeholder="10-digit mobile" inputmode="numeric" autocomplete="tel" />
+    <div class="err" id="err-phone"></div>
+
+    <label for="studentName">Student name</label>
+    <input id="studentName" placeholder="Your child's name" />
+
     <div class="row">
-      <div><label>Stream</label>
+      <div><label for="interest">Stream</label>
         <select id="interest"><option value="MPC + IIT-JEE">MPC + IIT-JEE</option><option value="BiPC + NEET">BiPC + NEET</option><option value="Not sure yet">Not sure yet</option></select></div>
-      <div><label>Language</label>
+      <div><label for="language">Language</label>
         <select id="language"><option value="te">Telugu</option><option value="hi">Hindi</option><option value="en">English</option></select></div>
     </div>
-    <label>Area</label><input id="area" placeholder="e.g. Kukatpally" />
-    <button onclick="submit()">Request a callback</button>
+
+    <label for="area">Area</label>
+    <input id="area" placeholder="e.g. Kukatpally" />
+
+    <button class="btn" id="submitBtn" type="button" onclick="submit()">Request a callback</button>
     <div id="msg" class="msg"></div>
-  </div>
+    <div class="trust">No spam. We only call about admissions.</div>
+  </main>
+
 <script>
+function fieldErr(id, message){
+  document.getElementById('err-'+id).textContent = message || '';
+  document.getElementById(id).classList.toggle('invalid', !!message);
+}
 async function submit(){
   const g=id=>document.getElementById(id).value.trim();
   const body={parentName:g('parentName'),phone:g('phone'),studentName:g('studentName'),interest:g('interest'),language:g('language'),area:g('area')};
-  const m=document.getElementById('msg');
-  if(!body.parentName||!body.phone){m.textContent='Please enter your name and phone.';return;}
-  m.textContent='Submitting…';
+  const btn=document.getElementById('submitBtn'), m=document.getElementById('msg');
+  m.textContent=''; m.className='msg';
+  // inline validation, next to the field (not a lone message at the bottom)
+  let bad=false;
+  fieldErr('parentName', body.parentName ? '' : (bad=true,'Please enter your name.'));
+  fieldErr('phone', /^\+?\d[\d\s]{8,}$/.test(body.phone) ? '' : (bad=true,'Enter a valid phone number.'));
+  if(bad) return;
+  btn.classList.add('is-loading'); btn.disabled=true; btn.textContent='Submitting…';
   try{
     const r=await fetch('/api/enquiry',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(x=>x.json());
-    m.className='msg '+(r.ok?'ok':''); m.textContent=r.message;
-    if(r.ok) document.querySelector('button').disabled=true;
-  }catch(e){m.textContent='Something went wrong — please call us directly.';}
+    btn.classList.remove('is-loading');
+    if(r.ok){
+      btn.classList.add('is-success'); btn.textContent='Callback requested ✓';
+      m.className='msg ok'; m.textContent=r.message || 'Done — Sneha will call you shortly.';
+    }else{
+      btn.classList.add('is-error'); btn.disabled=false; btn.textContent='Try again';
+      m.className='msg bad'; m.textContent=r.message || r.error || 'Please try again.';
+    }
+  }catch(e){
+    btn.classList.remove('is-loading'); btn.classList.add('is-error'); btn.disabled=false; btn.textContent='Try again';
+    m.className='msg bad'; m.textContent='Something went wrong — please call us directly.';
+  }
 }
 </script>
 </body>

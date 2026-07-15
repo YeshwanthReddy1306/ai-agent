@@ -1,0 +1,98 @@
+/* ============================================================================
+   ui.css — shared component layer (depends on tokens.css)
+   Buttons (8 states), chips, cards, slide-over, badges, wordmark, base reset.
+   Reused by showcase.html, admin.html, index.html, enquiry.html.
+   ============================================================================ */
+
+/* ---- reset / base ---- */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{overflow-x:clip}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);
+  font-size:var(--t-body);line-height:1.5;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+h1,h2,h3,h4{font-family:var(--serif);font-weight:600;font-style:normal;line-height:1.05;letter-spacing:-.015em}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}  /* ring never animates */
+::selection{background:color-mix(in oklch,var(--accent) 24%,transparent)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.wrap{max-width:1220px;margin:0 auto;padding:0 var(--s5)}
+@media(max-width:560px){.wrap{padding:0 var(--s4)}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto}}
+
+/* ---- wordmark ---- */
+.wordmark{display:inline-flex;align-items:baseline;gap:11px;text-decoration:none}
+.wordmark b{font-family:var(--serif);font-weight:700;font-size:22px;letter-spacing:-.02em;color:var(--ink)}
+.wordmark b::before{content:var(--brand-name)}
+.wordmark span{font-size:13px;color:var(--ink-soft)}
+.wordmark span::before{content:var(--brand-client)}
+
+/* ---- button (primary/ghost/danger), all 8 states ---- */
+.btn{--bg:var(--accent);--fg:var(--accent-ink);
+  display:inline-flex;align-items:center;justify-content:center;gap:9px;
+  min-height:44px;padding:0 22px;border:1px solid transparent;border-radius:var(--r-pill);
+  font-family:var(--sans);font-weight:600;font-size:15px;line-height:1;white-space:nowrap;
+  background:var(--bg);color:var(--fg);cursor:pointer;
+  transition:transform var(--dur-1) var(--ease),background var(--dur-1),opacity var(--dur-1)}
+.btn:hover{background:var(--accent-2);transform:translateY(-1px)}            /* hover */
+.btn:active{transform:translateY(0)}                                         /* active */
+.btn:focus-visible{outline:2px solid var(--accent-2);outline-offset:2px}     /* focus */
+.btn[disabled],.btn.is-loading{opacity:.55;pointer-events:none;transform:none} /* disabled + loading */
+.btn.is-loading::before{content:"";width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
+.btn.is-error{--bg:var(--hot)}                                               /* error */
+.btn.is-success{--bg:var(--ok)}                                              /* success */
+.btn--ghost{--bg:transparent;--fg:var(--ink);border-color:var(--line)}
+.btn--ghost:hover{background:var(--paper-2);border-color:var(--ink);color:var(--ink)}
+.btn--danger{--bg:var(--hot);--fg:#fff}
+.btn--danger:hover{background:oklch(50% 0.19 25)}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---- chips & badges ---- */
+.chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10.5px;
+  letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:20px;vertical-align:middle}
+/* chip text pushed dark (≈24% L, low chroma) + lighter fills so 10.5px mono labels clear AA 4.5 */
+.chip--sample{color:oklch(26% 0.07 75);background:color-mix(in oklch,var(--sample) 20%,transparent);border:1px solid color-mix(in oklch,var(--sample) 45%,transparent)}
+.chip--measured{color:oklch(19% 0.06 155);background:color-mix(in oklch,var(--ok) 13%,transparent);border:1px solid color-mix(in oklch,var(--ok) 38%,transparent)}
+.chip--modeled{color:oklch(26% 0.07 75);background:color-mix(in oklch,var(--sample) 18%,transparent);border:1px solid color-mix(in oklch,var(--sample) 42%,transparent)}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:3px 11px;border-radius:20px}
+.pill--hot{color:#fff;background:var(--hot)} .pill--warm{color:oklch(30% 0.1 62);background:color-mix(in oklch,var(--warm) 40%,transparent)}
+.pill--cold{color:#fff;background:var(--cold)}
+.pill--unknown{color:var(--ink-soft);background:var(--paper-3)}
+
+/* ---- file picker (replaces the raw OS "Choose File" control) + drag-drop ---- */
+.filepick{display:inline-flex;align-items:center;gap:12px;flex-wrap:wrap;
+  border:1.5px dashed var(--line);border-radius:var(--r-sm);padding:11px 14px;cursor:pointer;
+  transition:border-color var(--dur-1),background var(--dur-1)}
+.filepick:hover,.filepick.is-drag{border-color:var(--accent);background:color-mix(in oklch,var(--accent) 6%,transparent)}
+.filepick:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.filepick input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.filepick .fname{font-family:var(--mono);font-size:13px;color:var(--ink-soft)}
+.filepick .fhint{font-size:12.5px;color:var(--ink-faint)}
+
+/* ---- card ---- */
+.card{background:var(--paper-2);border:1px solid var(--line);border-radius:var(--r-md);padding:var(--s4);
+  transition:border-color var(--dur-1),transform var(--dur-1) var(--ease)}
+.card--interactive{cursor:pointer}
+.card--interactive:hover{border-color:var(--ink);transform:translateY(-2px)}
+.card--interactive:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ---- eyebrow / section label ---- */
+.eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+
+/* ---- slide-over (right drawer, reused by every drill panel) ---- */
+.backdrop{position:fixed;inset:0;background:color-mix(in oklch,var(--ink) 32%,transparent);
+  z-index:var(--z-backdrop);opacity:0;pointer-events:none;transition:opacity var(--dur-2)}
+.backdrop.open{opacity:1;pointer-events:auto}
+.slideover{position:fixed;top:0;right:0;bottom:0;width:min(440px,92vw);background:var(--paper);
+  border-left:1px solid var(--line);z-index:var(--z-slideover);transform:translateX(100%);
+  transition:transform var(--dur-2) var(--ease);overflow-y:auto;padding:var(--s5)}
+.slideover.open{transform:none}
+.slideover h3{font-size:1.6rem;margin-bottom:var(--s2)}
+.slideover .close{position:absolute;top:var(--s4);right:var(--s4);width:44px;height:44px;border:none;background:none;cursor:pointer;color:var(--ink-soft);font-size:22px}
+
+/* ---- reveal-on-scroll ---- */
+.reveal{opacity:0;transform:translateY(14px);transition:opacity var(--dur-3) var(--ease),transform var(--dur-3) var(--ease)}
+.reveal.in{opacity:1;transform:none}
+
+/* ---- utilities ---- */
+.hidden{display:none!important}
+.muted{color:var(--ink-soft)}

@@ -1,0 +1,79 @@
+/* ============================================================================
+   tokens.css — single source of truth for the Admissions AI frontend
+   Phase 0 · maroon/cream "editorial" register · near-black call stage
+   Every color/font/space/motion value lives here. Pages reference by name only.
+   Fonts are self-hosted (public/fonts/) — ZERO external requests at the venue.
+   ============================================================================ */
+
+/* ---- self-hosted fonts (latin) ---- */
+@font-face{font-family:'Fraunces';font-style:normal;font-weight:500;font-display:swap;src:url('/fonts/fraunces-500.woff2') format('woff2')}
+@font-face{font-family:'Fraunces';font-style:normal;font-weight:600;font-display:swap;src:url('/fonts/fraunces-600.woff2') format('woff2')}
+@font-face{font-family:'Fraunces';font-style:normal;font-weight:700;font-display:swap;src:url('/fonts/fraunces-700.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/inter-400.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:500;font-display:swap;src:url('/fonts/inter-500.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:swap;src:url('/fonts/inter-600.woff2') format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/plexmono-400.woff2') format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:swap;src:url('/fonts/plexmono-500.woff2') format('woff2')}
+
+:root{
+  /* ---- brand ---- */
+  --brand-name:"Admissions AI";        /* placeholder wordmark — swap here in ONE place */
+  --brand-client:"built for Intermediate colleges";
+
+  /* ---- paper (light business acts) ---- */
+  --paper:oklch(97% 0.012 80);
+  --paper-2:oklch(93.8% 0.016 72);
+  --paper-3:oklch(90% 0.02 68);
+
+  /* ---- ink (text on paper) ---- */
+  --ink:oklch(24% 0.02 40);
+  --ink-soft:oklch(46% 0.02 40);
+  --ink-faint:oklch(50% 0.02 50);   /* darkened from 62% -> passes WCAG AA (4.5) on raised cards */
+
+  /* ---- accent (maroon / burgundy) — THE color ---- */
+  --accent:oklch(40% 0.13 18);
+  --accent-2:oklch(52% 0.16 24);       /* brighter maroon: glows, active states */
+  --accent-ink:oklch(97% 0.02 30);     /* text on accent */
+
+  /* ---- stage (near-black call scene) ---- */
+  --stage:oklch(10% 0.008 25);
+  --stage-2:oklch(15% 0.012 22);
+  --stage-line:oklch(28% 0.02 22);
+  --stage-ink:oklch(95% 0.008 60);
+  --stage-soft:oklch(66% 0.015 55);
+
+  /* ---- status ---- */
+  --hot:oklch(58% 0.19 25);
+  --warm:oklch(66% 0.14 62);
+  --cold:oklch(56% 0.09 240);
+  --ok:oklch(58% 0.13 155);
+  --sample:oklch(70% 0.13 75);         /* amber SAMPLE chip */
+
+  /* ---- lines ---- */
+  --line:oklch(87% 0.014 72);
+
+  /* ---- type families (Telugu/Hindi fall back to system Indic fonts) ---- */
+  --sans:'Inter',system-ui,'Segoe UI','Nirmala UI','Noto Sans Telugu','Noto Sans Devanagari',sans-serif;
+  --serif:'Fraunces',Georgia,'Times New Roman',serif;
+  --mono:'IBM Plex Mono',ui-monospace,'Cascadia Code',monospace;
+
+  /* ---- type scale (fluid) ---- */
+  --t-hero:clamp(2.6rem,6.4vw,5.6rem);
+  --t-act:clamp(1.9rem,3.6vw,3rem);
+  --t-num:clamp(3.2rem,7vw,6rem);
+  --t-body:1.125rem;                   /* 18px floor — projector legibility */
+
+  /* ---- space (4pt) ---- */
+  --s1:4px; --s2:8px; --s3:16px; --s4:24px; --s5:40px; --s6:64px; --s7:104px;
+
+  /* ---- radius ---- */
+  --r-sm:8px; --r-md:14px; --r-lg:22px; --r-pill:30px;
+
+  /* ---- motion ---- */
+  --ease:cubic-bezier(.22,.61,.36,1);
+  --ease-in:cubic-bezier(.55,.06,.68,.19);
+  --dur-1:180ms; --dur-2:400ms; --dur-3:600ms;
+
+  /* ---- z-scale ---- */
+  --z-rail:40; --z-mast:30; --z-slideover:60; --z-backdrop:55;
+}
