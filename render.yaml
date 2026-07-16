@@ -1,25 +1,46 @@
-# Render Blueprint — deploys the WORKING voice agent (server.js) as a Node web service.
-# No Docker, no Dograh, no Next.js. This is the fastest path to a live HTTPS demo URL.
+# Render Blueprint — deploys the web app (showcase / dashboard / call console / enquiry)
+# as ONE Node web service. The telephony bridge (telephony/bridge.js) is NOT deployed —
+# phone calls stay off until FreJun goes live (that lands on Lightsail per the plan).
 # Docs: https://render.com/docs/blueprint-spec
+#
+# Free-plan realities (accepted for the client-review demo):
+#   · sleeps after ~15 min idle -> warm it before sharing / keep an uptime ping on /enquiry.html
+#   · NO persistent disk        -> data/ resets on every deploy or restart
+#     (leads.json ships in the repo with the demo leads, so the demo re-seeds itself)
 services:
   - type: web
-    name: sneha-voice-agent
+    name: admissions-ai
     runtime: node
-    plan: starter            # $7/mo always-on; use "free" to trial (sleeps when idle)
-    region: singapore        # closest Render region to Hyderabad
+    plan: free               # switch to "starter" ($7/mo) for always-on + no cold start
+    region: singapore        # closest Render region to Sarvam/Hyderabad (~+0.2s per turn)
     buildCommand: npm install
     startCommand: node server.js
-    healthCheckPath: /api/health
+    # MUST be a public route: /api/health sits behind the ACCESS_SECRET gate and would 401,
+    # making Render mark every deploy unhealthy. /enquiry.html is deliberately public.
+    healthCheckPath: /enquiry.html
     autoDeploy: true
     envVars:
-      - key: SARVAM_API_KEY  # set in the Render dashboard (Secret) — never commit it
+      # ---- secrets: set values in the Render dashboard — never committed ----
+      - key: SARVAM_API_KEY   # voice stack (STT/LLM/TTS)
         sync: false
+      - key: GROQ_API_KEY     # English-turn brain (without it English falls back to Sarvam)
+        sync: false
+      - key: ACCESS_SECRET    # REQUIRED: the password gate only activates when this is set —
+        sync: false           # deploying without it leaves the URL open to credit-burning
+      # ---- locked voice-stack config (mirrors .env / AGENT-SPEC) ----
       - key: AGENT_VOICE
         value: simran
       - key: LLM_MODEL
         value: sarvam-105b
       - key: LLM_TEMPERATURE
         value: "0.45"
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: MAX_CALL_MINUTES
+        value: "20"
+      - key: HISTORY_TURNS
+        value: "6"
+      - key: LANG_SWITCH_TURNS
+        value: "1"
       - key: NODE_VERSION
         value: "20"
-      # ENABLE_FAST_PATH intentionally unset -> persona answers every voice turn (Telugu safe)
