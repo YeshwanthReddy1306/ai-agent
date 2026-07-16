@@ -30,7 +30,7 @@ async function refresh() {
   D.follow = Array.isArray(fu) ? fu : [];
   D.roster = Array.isArray(ro) ? ro : (ro && ro.roster) || [];
   D.queue = Array.isArray(q) ? q : [];
-  $('cLeads').textContent = (D.crm && D.crm.leads || []).length || '';
+  $('cLeads').textContent = (((D.crm && D.crm.leads) || []).length + (D.queue || []).filter((l) => !((D.crm && D.crm.leads) || []).some((c) => c.id === l.id)).length) || '';
   $('cVisits').textContent = D.bookings.length || '';
   $('cFollow').textContent = D.follow.filter((t) => t.status !== 'sent').length || '';
   $('cPost').textContent = D.roster.length || '';
@@ -102,7 +102,20 @@ function pageOverview() {
 const L = { q: '', interest: '', mood: '', page: 1, per: 25 };
 
 function filteredLeads() {
-  const all = (D.crm && D.crm.leads) || [];
+  // The Leads view = CRM records (families Sneha has CALLED) merged with the calling
+  // QUEUE (fresh enquiries she hasn't rung yet). Without the merge, a just-submitted
+  // enquiry incremented the Overview count but was invisible here — the operator
+  // couldn't see it anywhere. Queued families show first, marked "Queued".
+  const crmRows = (D.crm && D.crm.leads) || [];
+  const seen = new Set(crmRows.map((l) => l.id));
+  const queued = (D.queue || []).filter((l) => !seen.has(l.id)).map((l) => ({
+    id: l.id, parentName: l.parentName, studentName: l.studentName, phone: l.phone,
+    area: l.area,
+    interestStream: l.interest,              // queue records carry the STREAM in `interest`
+    interest: 'unknown', sentiment: null, calls: 0, appointment: null,
+    nextAction: 'Queued — first call pending',
+  }));
+  const all = [...queued, ...crmRows];
   const q = L.q.trim().toLowerCase();
   return all.filter((l) => {
     if (L.interest && (l.interest || 'unknown') !== L.interest) return false;
@@ -121,7 +134,7 @@ function pageLeads() {
 
   $('main').innerHTML = `
     <div class="page-h"><div><h1>Leads</h1>
-      <div class="sub">${rows.length} of ${(D.crm && D.crm.leads || []).length} families</div></div>
+      <div class="sub">${rows.length} of ${((D.crm && D.crm.leads) || []).length + (D.queue || []).filter((l) => !((D.crm && D.crm.leads) || []).some((c) => c.id === l.id)).length} families</div></div>
       <label class="filepick" for="csv">
         <input type="file" id="csv" accept=".csv,text/csv" />
         <span class="btn btn--ghost btn--sm" tabindex="-1">Choose CSV</span>
