@@ -590,6 +590,7 @@ const sampleAdd = (key) => {
    Volume and salary are ASSUMPTIONS. Each line says which it is — the restraint
    is the pitch: a buyer trusts numbers that admit what they don't know. */
 const RUPEE = (n) => '₹' + Math.round(n).toLocaleString('en-IN');
+const RATE = (n) => '₹' + n.toFixed(2);   // per-minute rates are paise-level — rounding showed '₹0/min'
 
 // per connected minute (₹) — FreJun outbound 0.15 + media-streaming 0.15 (confirmed stacking)
 const PER_MIN = { telephony: 0.30, tts: 0.64, stt: 0.25, llm: 0.04 };
@@ -621,10 +622,10 @@ function renderCase(size) {
     <table class="cost">
       <thead><tr><th>Line</th><th>Basis</th><th style="text-align:right">Per month</th></tr></thead>
       <tbody>
-        <tr><td>Telephony — ${RUPEE(PER_MIN.telephony)}/min</td><td>${M} FreJun quote</td><td class="num">${RUPEE(t.minutes * PER_MIN.telephony)}</td></tr>
-        <tr><td>Voice (TTS) — ${RUPEE(PER_MIN.tts)}/min</td><td>${M} Sarvam pricing</td><td class="num">${RUPEE(t.minutes * PER_MIN.tts)}</td></tr>
-        <tr><td>Transcription (STT) — ${RUPEE(PER_MIN.stt)}/min</td><td>${M} Sarvam pricing</td><td class="num">${RUPEE(t.minutes * PER_MIN.stt)}</td></tr>
-        <tr><td>Language model — ${RUPEE(PER_MIN.llm)}/min</td><td>${M} Sarvam pricing</td><td class="num">${RUPEE(t.minutes * PER_MIN.llm)}</td></tr>
+        <tr><td>Telephony — ${RATE(PER_MIN.telephony)}/min</td><td>${M} FreJun quote</td><td class="num">${RUPEE(t.minutes * PER_MIN.telephony)}</td></tr>
+        <tr><td>Voice (TTS) — ${RATE(PER_MIN.tts)}/min</td><td>${M} Sarvam pricing</td><td class="num">${RUPEE(t.minutes * PER_MIN.tts)}</td></tr>
+        <tr><td>Transcription (STT) — ${RATE(PER_MIN.stt)}/min</td><td>${M} Sarvam pricing</td><td class="num">${RUPEE(t.minutes * PER_MIN.stt)}</td></tr>
+        <tr><td>Language model — ${RATE(PER_MIN.llm)}/min</td><td>${M} Sarvam pricing</td><td class="num">${RUPEE(t.minutes * PER_MIN.llm)}</td></tr>
         <tr><td>Phone channels (${t.channels} × ${RUPEE(CHANNEL)})</td><td>${M} FreJun quote</td><td class="num">${RUPEE(channels)}</td></tr>
         <tr><td>Server + WhatsApp</td><td>${M} list price</td><td class="num">${RUPEE(t.host + t.whatsapp)}</td></tr>
         <tr><td>Talk-minutes assumed</td><td>${D} ${t.minutes.toLocaleString('en-IN')} connected min/mo</td><td class="num">—</td></tr>
