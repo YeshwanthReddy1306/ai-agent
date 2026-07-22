@@ -123,3 +123,12 @@ recording consent. Details in PREMORTEM.md — India fines per violation.
 Sarvam pricing is credit-based; a typical turn ≈ 10 s audio STT + ~300 LLM tokens + ~15 s TTS.
 At current published rates a full 3-minute call lands around **₹2–4** — versus ₹80–150 for a human
 tele-caller minute-for-minute including salary/overheads. Verify current rates at dashboard.sarvam.ai.
+
+8. Key upgrades you'll be doing for all of this
+To elevate this architecture further, particularly from a full-stack and machine learning perspective, you could implement:
+
+Advanced RAG (Retrieval-Augmented Generation): Ensure the model accesses a vector database of the institute's specific rulebooks and scholarship matrices so it never hallucinates a fee structure.
+
+Live Sentiment Analysis: Build a backend flag in the CRM that monitors the parent's tone during the AI call. If the parent sounds frustrated or highly hesitant regarding fees, the system should trigger an immediate live-transfer to a human closer.
+
+Omnichannel Integration: Expand the logic beyond voice. If a parent doesn't answer the phone, the system should seamlessly drop a conversational WhatsApp message that uses the exact same memory context as the voice agent.
