@@ -246,7 +246,7 @@ async function handleApi(req, res, url, body) {
     const real = (v) => !!v && !PLACEHOLDER.test(v);
     return json(res, 200, {
       ok: true, hasKey: !!API_KEY, college: college.name, agent: college.agentName,
-      model: process.env.LLM_MODEL || 'sarvam-30b', voice: process.env.AGENT_VOICE || 'simran',
+      model: process.env.LLM_MODEL || 'sarvam-105b', voice: process.env.AGENT_VOICE || 'simran',
       maxCallMinutes: MAX_CALL_MS / 60000, sessionUsage,
       latency: { p50: percentile(0.5), p95: percentile(0.95), turns: turnLatencies.length },
       services: serviceHealth, brain: brainStatus(),

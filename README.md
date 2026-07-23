@@ -10,7 +10,7 @@ Built on **Sarvam AI** (trained on Indian data):
 | Stage | Service | Why |
 |---|---|---|
 | Hearing | Saaras v3 STT | Auto-detects Telugu/Hindi/English, handles Hyderabad code-mixing |
-| Brain | Sarvam-30B LLM | Indian-language-native, fast enough for live calls |
+| Brain | Sarvam-105B LLM | Indian-language-native, highest quality for live calls |
 | Voice | Bulbul v3 TTS | Natural Indian voices with emotion control (pace + expressiveness) |
 
 **Zero npm dependencies.** Plain Node 18+. One server file.
